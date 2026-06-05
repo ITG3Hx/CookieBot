@@ -14,8 +14,11 @@ const {
   Client,
   EmbedBuilder,
   GatewayIntentBits,
+  ModalBuilder,
   Partials,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  TextInputBuilder,
+  TextInputStyle
 } = require("discord.js");
 
 const env = (name, fallback = "") => String(process.env[name] || fallback).trim();
@@ -317,7 +320,8 @@ const COOKIE_COMMANDS = [
   { name: "applications", description: "Show Cookie SMP application links" },
   { name: "status", description: "Show Cookie SMP status" },
   { name: "help", description: "Show CookieBot commands" },
-  { name: "sync-nocountry", description: "Sync the NoCountry role" }
+  { name: "sync-nocountry", description: "Sync the NoCountry role" },
+  { name: "announce", description: "Create a clean Cookie SMP announcement embed" }
 ];
 
 async function registerCookieCommands() {
@@ -478,6 +482,51 @@ client.on("interactionCreate", async interaction => {
         });
       }
 
+      if (interaction.commandName === "announce") {
+        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+          return interaction.reply({
+            content: "You need Manage Server to use this.",
+            ephemeral: true
+          });
+        }
+
+        const modal = new ModalBuilder()
+          .setCustomId("cookie_announce_modal")
+          .setTitle("Cookie SMP Announcement");
+
+        const titleInput = new TextInputBuilder()
+          .setCustomId("announce_title")
+          .setLabel("Title")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("Cookie SMP Update")
+          .setRequired(true)
+          .setMaxLength(100);
+
+        const messageInput = new TextInputBuilder()
+          .setCustomId("announce_message")
+          .setLabel("Message")
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder("Write the announcement here")
+          .setRequired(true)
+          .setMaxLength(1800);
+
+        const pingInput = new TextInputBuilder()
+          .setCustomId("announce_ping")
+          .setLabel("Ping optional")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("none, everyone, or here")
+          .setRequired(false)
+          .setMaxLength(20);
+
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(titleInput),
+          new ActionRowBuilder().addComponents(messageInput),
+          new ActionRowBuilder().addComponents(pingInput)
+        );
+
+        return interaction.showModal(modal);
+      }
+
       if (interaction.commandName === "sync-nocountry") {
         if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
           return interaction.reply({
@@ -519,13 +568,49 @@ client.on("interactionCreate", async interaction => {
             "`/applications` - Show application links",
             "`/status` - Show Cookie SMP status",
             "`/help` - Show this command list",
-            "`/sync-nocountry` - Sync the NoCountry role"
+            "`/sync-nocountry` - Sync the NoCountry role",
+            "`/announce` - Send a clean announcement embed"
           ].join("\n"),
           ephemeral: true
         });
       }
 
       return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === "cookie_announce_modal") {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({
+          content: "You need Manage Server to use this.",
+          ephemeral: true
+        });
+      }
+
+      const title = clean(interaction.fields.getTextInputValue("announce_title"), 100) || "Cookie SMP Update";
+      const message = clean(interaction.fields.getTextInputValue("announce_message"), 1800);
+      const pingRaw = clean(interaction.fields.getTextInputValue("announce_ping"), 20).toLowerCase();
+
+      let ping = "";
+      if (pingRaw === "everyone" || pingRaw === "@everyone") ping = "@everyone";
+      if (pingRaw === "here" || pingRaw === "@here") ping = "@here";
+
+      const embed = new EmbedBuilder()
+        .setColor(0xBA7945)
+        .setTitle(`🍪 ${title}`)
+        .setDescription(message)
+        .setFooter({ text: "Cookie SMP" })
+        .setTimestamp();
+
+      await interaction.channel.send({
+        content: ping,
+        embeds: [embed],
+        allowedMentions: ping ? { parse: [ping.replace("@", "")] } : { parse: [] }
+      });
+
+      return interaction.reply({
+        content: "Announcement sent.",
+        ephemeral: true
+      });
     }
 
     if (!interaction.isButton()) return;

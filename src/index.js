@@ -58,6 +58,8 @@ const BOT_STATUSES = [
   "Preparing launch systems"
 ];
 
+const INVITE_TRACKER_OWNER_ID = env("INVITE_TRACKER_OWNER_ID", "1319642783174234134");
+
 if (!TOKEN || !STAFF_REVIEW_CHANNEL_ID) {
   console.error("Missing DISCORD_TOKEN or STAFF_REVIEW_CHANNEL_ID in environment variables.");
   process.exit(1);
@@ -114,6 +116,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildInvites,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
@@ -469,6 +472,83 @@ function restoreCountryReminderTimers() {
   }
 }
 
+const inviteCache = new Map();
+
+async function cacheGuildInvites(guild) {
+  try {
+    const invites = await guild.invites.fetch();
+    const map = new Map();
+
+    for (const invite of invites.values()) {
+      map.set(invite.code, invite.uses || 0);
+    }
+
+    inviteCache.set(guild.id, map);
+    console.log(`[InviteTracker] Cached ${map.size} invites for ${guild.name}`);
+  } catch (error) {
+    console.warn(`[InviteTracker] Could not cache invites for ${guild.name}: ${error.message}`);
+  }
+}
+
+async function cacheAllGuildInvites() {
+  for (const guild of client.guilds.cache.values()) {
+    await cacheGuildInvites(guild);
+  }
+}
+
+async function findUsedInvite(guild) {
+  const oldInvites = inviteCache.get(guild.id) || new Map();
+
+  try {
+    const newInvites = await guild.invites.fetch();
+
+    let usedInvite = null;
+
+    for (const invite of newInvites.values()) {
+      const oldUses = oldInvites.get(invite.code) || 0;
+      const newUses = invite.uses || 0;
+
+      if (newUses > oldUses) {
+        usedInvite = invite;
+        break;
+      }
+    }
+
+    const freshMap = new Map();
+
+    for (const invite of newInvites.values()) {
+      freshMap.set(invite.code, invite.uses || 0);
+    }
+
+    inviteCache.set(guild.id, freshMap);
+    return usedInvite;
+  } catch (error) {
+    console.warn(`[InviteTracker] Could not check used invite in ${guild.name}: ${error.message}`);
+    return null;
+  }
+}
+
+async function notifyOwnerAboutInvite(member, invite) {
+  if (!INVITE_TRACKER_OWNER_ID) return;
+  if (!invite || !invite.inviter) return;
+  if (invite.inviter.id === INVITE_TRACKER_OWNER_ID) return;
+
+  try {
+    const owner = await client.users.fetch(INVITE_TRACKER_OWNER_ID);
+
+    await owner.send([
+      "🍪 Cookie SMP Invite Alert",
+      "",
+      `${member.user.tag} joined the server.`,
+      `Invited by: ${invite.inviter.tag}`,
+      `Invite code: ${invite.code}`,
+      `Invite uses: ${invite.uses || 0}`
+    ].join("\n"));
+  } catch (error) {
+    console.warn(`[InviteTracker] Could not DM owner: ${error.message}`);
+  }
+}
+
 let statusIndex = 0;
 let statusTimer = null;
 
@@ -563,6 +643,7 @@ client.once("ready", () => {
   registerCookieCommands();
   restoreCountryReminderTimers();
   startStatusRotation();
+  cacheAllGuildInvites();
 
   const app = express();
 
@@ -932,6 +1013,9 @@ process.on("unhandledRejection", error => {
 
 client.on("guildMemberAdd", async member => {
   try {
+    const usedInvite = await findUsedInvite(member.guild);
+    await notifyOwnerAboutInvite(member, usedInvite);
+
     await updateNoCountry(member, "Joined without country role");
 
     if (!hasCountryRole(member)) {
@@ -1023,6 +1107,19 @@ client.on("messageCreate", async message => {
     });
 
     await message.reply("Announcement sent.").catch(() => {});
+  }
+});
+
+
+client.on("inviteCreate", async invite => {
+  if (invite.guild) {
+    await cacheGuildInvites(invite.guild);
+  }
+});
+
+client.on("inviteDelete", async invite => {
+  if (invite.guild) {
+    await cacheGuildInvites(invite.guild);
   }
 });
 

@@ -40,6 +40,8 @@ const COUNTRY_ROLE_NAMES = env("COUNTRY_ROLE_NAMES", "Russia,Germany,USA")
   .filter(Boolean);
 
 const NO_COUNTRY_ROLE_NAME = env("NO_COUNTRY_ROLE_NAME", "NoCountry");
+const COUNTRY_REMINDER_DELAY_MS = Number(env("COUNTRY_REMINDER_DELAY_MS", "600000"));
+const COUNTRY_CHANNEL_MENTION = env("COUNTRY_CHANNEL_MENTION", "🌏｜Country");
 
 if (!TOKEN || !STAFF_REVIEW_CHANNEL_ID) {
   console.error("Missing DISCORD_TOKEN or STAFF_REVIEW_CHANNEL_ID in environment variables.");
@@ -48,6 +50,7 @@ if (!TOKEN || !STAFF_REVIEW_CHANNEL_ID) {
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DATA_FILE = path.join(DATA_DIR, "applications.json");
+const COUNTRY_REMINDER_FILE = path.join(DATA_DIR, "country-reminders.json");
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -67,6 +70,30 @@ function saveStore() {
 }
 
 const applications = loadStore();
+
+function loadCountryReminderStore() {
+  try {
+    if (!fs.existsSync(COUNTRY_REMINDER_FILE)) {
+      return { sent: {}, pending: {} };
+    }
+
+    const data = JSON.parse(fs.readFileSync(COUNTRY_REMINDER_FILE, "utf8"));
+
+    return {
+      sent: data.sent || {},
+      pending: data.pending || {}
+    };
+  } catch {
+    return { sent: {}, pending: {} };
+  }
+}
+
+function saveCountryReminderStore() {
+  fs.writeFileSync(COUNTRY_REMINDER_FILE, JSON.stringify(countryReminders, null, 2), "utf8");
+}
+
+const countryReminders = loadCountryReminderStore();
+const countryReminderTimers = new Map();
 
 const client = new Client({
   intents: [
@@ -312,6 +339,121 @@ function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function hasCountryReminderBeenSent(member) {
+  return Boolean(countryReminders.sent[member.id]);
+}
+
+function markCountryReminderSent(member) {
+  countryReminders.sent[member.id] = Date.now();
+  delete countryReminders.pending[member.id];
+  saveCountryReminderStore();
+}
+
+function cancelCountryReminder(member) {
+  const timer = countryReminderTimers.get(member.id);
+
+  if (timer) {
+    clearTimeout(timer);
+    countryReminderTimers.delete(member.id);
+  }
+
+  if (countryReminders.pending[member.id]) {
+    delete countryReminders.pending[member.id];
+    saveCountryReminderStore();
+  }
+}
+
+function scheduleCountryReminder(member) {
+  if (!member || member.user.bot) return;
+  if (hasCountryReminderBeenSent(member)) return;
+  if (hasCountryRole(member)) {
+    cancelCountryReminder(member);
+    return;
+  }
+
+  const sendAt = Date.now() + COUNTRY_REMINDER_DELAY_MS;
+  const currentPending = countryReminders.pending[member.id];
+
+  if (currentPending && currentPending > Date.now()) return;
+
+  countryReminders.pending[member.id] = sendAt;
+  saveCountryReminderStore();
+
+  startCountryReminderTimer(member.guild.id, member.id, COUNTRY_REMINDER_DELAY_MS);
+}
+
+function startCountryReminderTimer(guildId, userId, delayMs) {
+  if (countryReminderTimers.has(userId)) return;
+
+  const timer = setTimeout(async () => {
+    countryReminderTimers.delete(userId);
+    await sendCountryReminderIfNeeded(guildId, userId);
+  }, Math.max(1000, delayMs));
+
+  countryReminderTimers.set(userId, timer);
+}
+
+async function sendCountryReminderIfNeeded(guildId, userId) {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
+
+  let member = null;
+
+  try {
+    member = await guild.members.fetch(userId);
+  } catch {
+    delete countryReminders.pending[userId];
+    saveCountryReminderStore();
+    return;
+  }
+
+  if (!member || member.user.bot) return;
+
+  if (hasCountryRole(member)) {
+    cancelCountryReminder(member);
+    return;
+  }
+
+  if (hasCountryReminderBeenSent(member)) {
+    cancelCountryReminder(member);
+    return;
+  }
+
+  try {
+    await member.send(
+      `Please choose your country in **${COUNTRY_CHANNEL_MENTION}**.`
+    );
+
+    markCountryReminderSent(member);
+  } catch (error) {
+    console.warn(`[CountryReminder] Could not DM ${member.user.tag}: ${error.message}`);
+    markCountryReminderSent(member);
+  }
+}
+
+function restoreCountryReminderTimers() {
+  const now = Date.now();
+
+  for (const [userId, sendAt] of Object.entries(countryReminders.pending)) {
+    const delay = Number(sendAt) - now;
+
+    if (delay <= 0) {
+      for (const guild of client.guilds.cache.values()) {
+        sendCountryReminderIfNeeded(guild.id, userId).catch(error =>
+          console.warn(`[CountryReminder] Restore failed for ${userId}: ${error.message}`)
+        );
+      }
+
+      continue;
+    }
+
+    for (const guild of client.guilds.cache.values()) {
+      startCountryReminderTimer(guild.id, userId, delay);
+      break;
+    }
+  }
+}
+
 const COOKIE_COMMANDS = [
   { name: "id", description: "Show your Discord user ID" },
   { name: "serverid", description: "Show this server ID" },
@@ -321,25 +463,49 @@ const COOKIE_COMMANDS = [
   { name: "status", description: "Show Cookie SMP status" },
   { name: "help", description: "Show CookieBot commands" },
   { name: "sync-nocountry", description: "Sync the NoCountry role" },
-  { name: "announce", description: "Hi lol" }
+  { name: "announce", description: "ㅤ" }
 ];
 
 async function registerCookieCommands() {
   const commandNames = COOKIE_COMMANDS.map(command => command.name).join(", ");
+  const cookieCommandNames = new Set(COOKIE_COMMANDS.map(command => command.name));
 
   try {
-    await client.application.commands.set([]);
-    console.log("CookieBot global slash commands cleared to prevent duplicates.");
+    const globalCommands = await client.application.commands.fetch();
+    const keepGlobalCommands = globalCommands
+      .filter(command => !cookieCommandNames.has(command.name))
+      .map(command => ({
+        name: command.name,
+        description: command.description,
+        options: command.options || [],
+        default_member_permissions: command.defaultMemberPermissions?.bitfield?.toString() || null,
+        dm_permission: command.dmPermission ?? false
+      }));
+
+    await client.application.commands.set(keepGlobalCommands);
+    console.log("CookieBot global duplicate commands cleaned without touching unrelated global commands.");
   } catch (error) {
-    console.error("Could not clear global CookieBot slash commands:", error.message);
+    console.error("Could not clean global CookieBot slash commands:", error.message);
   }
 
   for (const guild of client.guilds.cache.values()) {
     try {
-      await guild.commands.set(COOKIE_COMMANDS);
-      console.log(`CookieBot guild slash commands registered for ${guild.name}: ${commandNames}`);
+      const guildCommands = await guild.commands.fetch();
+
+      const keepGuildCommands = guildCommands
+        .filter(command => !cookieCommandNames.has(command.name))
+        .map(command => ({
+          name: command.name,
+          description: command.description,
+          options: command.options || [],
+          default_member_permissions: command.defaultMemberPermissions?.bitfield?.toString() || null,
+          dm_permission: command.dmPermission ?? false
+        }));
+
+      await guild.commands.set([...keepGuildCommands, ...COOKIE_COMMANDS]);
+      console.log(`CookieBot guild slash commands merged for ${guild.name}: ${commandNames}`);
     } catch (error) {
-      console.error(`Could not register guild commands for ${guild.name}:`, error.message);
+      console.error(`Could not merge guild commands for ${guild.name}:`, error.message);
     }
   }
 }
@@ -348,6 +514,7 @@ client.once("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
 
   registerCookieCommands();
+  restoreCountryReminderTimers();
 
   const app = express();
 
@@ -718,6 +885,10 @@ process.on("unhandledRejection", error => {
 client.on("guildMemberAdd", async member => {
   try {
     await updateNoCountry(member, "Joined without country role");
+
+    if (!hasCountryRole(member)) {
+      scheduleCountryReminder(member);
+    }
   } catch (error) {
     console.warn(`[NoCountry] Join update failed for ${member.user.tag}: ${error.message}`);
   }
@@ -726,6 +897,12 @@ client.on("guildMemberAdd", async member => {
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
   try {
     await updateNoCountry(newMember, "Country role changed");
+
+    if (hasCountryRole(newMember)) {
+      cancelCountryReminder(newMember);
+    } else {
+      scheduleCountryReminder(newMember);
+    }
   } catch (error) {
     console.warn(`[NoCountry] Role update failed for ${newMember.user.tag}: ${error.message}`);
   }

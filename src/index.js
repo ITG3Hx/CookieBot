@@ -325,11 +325,22 @@ const COOKIE_COMMANDS = [
 ];
 
 async function registerCookieCommands() {
+  const commandNames = COOKIE_COMMANDS.map(command => command.name).join(", ");
+
   try {
     await client.application.commands.set(COOKIE_COMMANDS);
-    console.log("CookieBot slash commands registered.");
+    console.log(`CookieBot global slash commands registered: ${commandNames}`);
   } catch (error) {
-    console.error("Could not register CookieBot slash commands:", error.message);
+    console.error("Could not register global CookieBot slash commands:", error.message);
+  }
+
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      await guild.commands.set(COOKIE_COMMANDS);
+      console.log(`CookieBot guild slash commands registered for ${guild.name}: ${commandNames}`);
+    } catch (error) {
+      console.error(`Could not register guild commands for ${guild.name}:`, error.message);
+    }
   }
 }
 
@@ -699,22 +710,57 @@ client.on("guildMemberUpdate", async (oldMember, newMember) => {
 
 client.on("messageCreate", async message => {
   if (!message.guild || message.author.bot) return;
-  if (message.content.toLowerCase() !== "!syncnocountry") return;
 
-  if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
-    return message.reply("You need Manage Roles to use this.");
+  if (message.content.toLowerCase() === "!syncnocountry") {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      return message.reply("You need Manage Roles to use this.");
+    }
+
+    const msg = await message.reply("Syncing NoCountry roles...");
+
+    try {
+      const result = await syncNoCountry(message.guild);
+
+      await msg.edit(
+        `NoCountry sync done\nAdded: ${result.added}\nRemoved: ${result.removed}\nFailed: ${result.failed}`
+      );
+    } catch (error) {
+      await msg.edit(`NoCountry sync failed: ${error.message}`);
+    }
+
+    return;
   }
 
-  const msg = await message.reply("Syncing NoCountry roles...");
+  if (message.content.toLowerCase().startsWith("!announce ")) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+      return message.reply("You need Manage Server to use this.");
+    }
 
-  try {
-    const result = await syncNoCountry(message.guild);
+    const raw = message.content.slice("!announce ".length).trim();
+    const parts = raw.split("|").map(part => part.trim());
 
-    await msg.edit(
-      `NoCountry sync done\nAdded: ${result.added}\nRemoved: ${result.removed}\nFailed: ${result.failed}`
-    );
-  } catch (error) {
-    await msg.edit(`NoCountry sync failed: ${error.message}`);
+    const title = clean(parts[0], 100) || "Cookie SMP Update";
+    const announcement = clean(parts[1], 1800) || "No message provided.";
+    const pingRaw = clean(parts[2], 20).toLowerCase();
+
+    let ping = "";
+    if (pingRaw === "everyone" || pingRaw === "@everyone") ping = "@everyone";
+    if (pingRaw === "here" || pingRaw === "@here") ping = "@here";
+
+    const embed = new EmbedBuilder()
+      .setColor(0xBA7945)
+      .setTitle(`🍪 ${title}`)
+      .setDescription(announcement)
+      .setFooter({ text: "Cookie SMP" })
+      .setTimestamp();
+
+    await message.channel.send({
+      content: ping,
+      embeds: [embed],
+      allowedMentions: ping ? { parse: [ping.replace("@", "")] } : { parse: [] }
+    });
+
+    await message.reply("Announcement sent.").catch(() => {});
   }
 });
 

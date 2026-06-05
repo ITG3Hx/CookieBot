@@ -480,3 +480,114 @@ process.on("unhandledRejection", error => {
 });
 
 client.login(TOKEN);
+
+// NoCountry role system
+const COUNTRY_ROLE_NAMES = ["Russia", "Germany", "USA"];
+const NO_COUNTRY_ROLE_NAME = "NoCountry";
+
+function getRoleByName(guild, roleName) {
+  return guild.roles.cache.find(role =>
+    role.name.toLowerCase() === roleName.toLowerCase()
+  );
+}
+
+function hasCountryRole(member) {
+  return member.roles.cache.some(role =>
+    COUNTRY_ROLE_NAMES.some(name => role.name.toLowerCase() === name.toLowerCase())
+  );
+}
+
+async function updateNoCountry(member, reason = "NoCountry role sync") {
+  if (!member || member.user.bot) return;
+
+  const noCountryRole = getRoleByName(member.guild, NO_COUNTRY_ROLE_NAME);
+
+  if (!noCountryRole) {
+    console.log(`[NoCountry] Role "${NO_COUNTRY_ROLE_NAME}" not found`);
+    return;
+  }
+
+  const hasCountry = hasCountryRole(member);
+  const hasNoCountry = member.roles.cache.has(noCountryRole.id);
+
+  if (!hasCountry && !hasNoCountry) {
+    await member.roles.add(noCountryRole, reason);
+  }
+
+  if (hasCountry && hasNoCountry) {
+    await member.roles.remove(noCountryRole, reason);
+  }
+}
+
+async function syncNoCountry(guild) {
+  const noCountryRole = getRoleByName(guild, NO_COUNTRY_ROLE_NAME);
+
+  if (!noCountryRole) {
+    throw new Error(`Role "${NO_COUNTRY_ROLE_NAME}" not found`);
+  }
+
+  await guild.members.fetch();
+
+  let added = 0;
+  let removed = 0;
+  let failed = 0;
+
+  for (const member of guild.members.cache.values()) {
+    if (member.user.bot) continue;
+
+    try {
+      const before = member.roles.cache.has(noCountryRole.id);
+
+      await updateNoCountry(member, "Manual NoCountry sync");
+
+      const after = member.roles.cache.has(noCountryRole.id);
+
+      if (!before && after) added++;
+      if (before && !after) removed++;
+
+      await new Promise(resolve => setTimeout(resolve, 250));
+    } catch (error) {
+      failed++;
+      console.log(`[NoCountry] Failed for ${member.user.tag}: ${error.message}`);
+    }
+  }
+
+  return { added, removed, failed };
+}
+
+client.on("guildMemberAdd", async member => {
+  try {
+    await updateNoCountry(member, "Joined without country role");
+  } catch (error) {
+    console.log(`[NoCountry] Join update failed: ${error.message}`);
+  }
+});
+
+client.on("guildMemberUpdate", async (oldMember, newMember) => {
+  try {
+    await updateNoCountry(newMember, "Country role changed");
+  } catch (error) {
+    console.log(`[NoCountry] Role update failed: ${error.message}`);
+  }
+});
+
+client.on("messageCreate", async message => {
+  if (!message.guild || message.author.bot) return;
+  if (message.content !== "!syncnocountry") return;
+
+  if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    return message.reply("You need Manage Roles to use this.");
+  }
+
+  const msg = await message.reply("Syncing NoCountry roles...");
+
+  try {
+    const result = await syncNoCountry(message.guild);
+
+    await msg.edit(
+      `NoCountry sync done\nAdded: ${result.added}\nRemoved: ${result.removed}\nFailed: ${result.failed}`
+    );
+  } catch (error) {
+    await msg.edit(`NoCountry sync failed: ${error.message}`);
+  }
+});

@@ -321,7 +321,7 @@ const COOKIE_COMMANDS = [
   { name: "status", description: "Show Cookie SMP status" },
   { name: "help", description: "Show CookieBot commands" },
   { name: "sync-nocountry", description: "Sync the NoCountry role" },
-  { name: "announce", description: "ㅤ" }
+  { name: "announce", description: "Hi lol" }
 ];
 
 async function registerCookieCommands() {

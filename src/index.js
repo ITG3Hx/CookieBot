@@ -321,17 +321,17 @@ const COOKIE_COMMANDS = [
   { name: "status", description: "Show Cookie SMP status" },
   { name: "help", description: "Show CookieBot commands" },
   { name: "sync-nocountry", description: "Sync the NoCountry role" },
-  { name: "announce", description: "Create a clean Cookie SMP announcement embed" }
+  { name: "announce", description: "ㅤ" }
 ];
 
 async function registerCookieCommands() {
   const commandNames = COOKIE_COMMANDS.map(command => command.name).join(", ");
 
   try {
-    await client.application.commands.set(COOKIE_COMMANDS);
-    console.log(`CookieBot global slash commands registered: ${commandNames}`);
+    await client.application.commands.set([]);
+    console.log("CookieBot global slash commands cleared to prevent duplicates.");
   } catch (error) {
-    console.error("Could not register global CookieBot slash commands:", error.message);
+    console.error("Could not clear global CookieBot slash commands:", error.message);
   }
 
   for (const guild of client.guilds.cache.values()) {
@@ -517,9 +517,17 @@ client.on("interactionCreate", async interaction => {
           .setCustomId("announce_message")
           .setLabel("Message")
           .setStyle(TextInputStyle.Paragraph)
-          .setPlaceholder("Write the announcement here")
+          .setPlaceholder("You can use **bold**, *italic*, __underline__ and bullet points")
           .setRequired(true)
           .setMaxLength(1800);
+
+        const styleInput = new TextInputBuilder()
+          .setCustomId("announce_style")
+          .setLabel("Style optional")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("normal, big, huge, quote")
+          .setRequired(false)
+          .setMaxLength(20);
 
         const pingInput = new TextInputBuilder()
           .setCustomId("announce_ping")
@@ -532,6 +540,7 @@ client.on("interactionCreate", async interaction => {
         modal.addComponents(
           new ActionRowBuilder().addComponents(titleInput),
           new ActionRowBuilder().addComponents(messageInput),
+          new ActionRowBuilder().addComponents(styleInput),
           new ActionRowBuilder().addComponents(pingInput)
         );
 
@@ -598,18 +607,32 @@ client.on("interactionCreate", async interaction => {
       }
 
       const title = clean(interaction.fields.getTextInputValue("announce_title"), 100) || "Cookie SMP Update";
-      const message = clean(interaction.fields.getTextInputValue("announce_message"), 1800);
+      const rawMessage = clean(interaction.fields.getTextInputValue("announce_message"), 1800);
+      const style = clean(interaction.fields.getTextInputValue("announce_style"), 20).toLowerCase();
       const pingRaw = clean(interaction.fields.getTextInputValue("announce_ping"), 20).toLowerCase();
 
       let ping = "";
       if (pingRaw === "everyone" || pingRaw === "@everyone") ping = "@everyone";
       if (pingRaw === "here" || pingRaw === "@here") ping = "@here";
 
+      let titleText = `🍪 ${title}`;
+      let message = rawMessage;
+
+      if (style === "big") titleText = `# 🍪 ${title}`;
+      if (style === "huge") {
+        titleText = `# 🍪 ${title}`;
+        message = `## ${rawMessage}`;
+      }
+      if (style === "quote") {
+        message = rawMessage
+          .split("\\n")
+          .map(line => line.trim() ? `> ${line}` : ">")
+          .join("\\n");
+      }
+
       const embed = new EmbedBuilder()
         .setColor(0xBA7945)
-        .setTitle(`🍪 ${title}`)
-        .setDescription(message)
-        .setFooter({ text: "Cookie SMP" })
+        .setDescription(`${titleText}\\n\\n${message}`)
         .setTimestamp();
 
       await interaction.channel.send({
@@ -740,18 +763,32 @@ client.on("messageCreate", async message => {
     const parts = raw.split("|").map(part => part.trim());
 
     const title = clean(parts[0], 100) || "Cookie SMP Update";
-    const announcement = clean(parts[1], 1800) || "No message provided.";
-    const pingRaw = clean(parts[2], 20).toLowerCase();
+    const rawAnnouncement = clean(parts[1], 1800) || "No message provided.";
+    const style = clean(parts[2], 20).toLowerCase();
+    const pingRaw = clean(parts[3] || parts[2], 20).toLowerCase();
 
     let ping = "";
     if (pingRaw === "everyone" || pingRaw === "@everyone") ping = "@everyone";
     if (pingRaw === "here" || pingRaw === "@here") ping = "@here";
 
+    let titleText = `🍪 ${title}`;
+    let announcement = rawAnnouncement;
+
+    if (style === "big") titleText = `# 🍪 ${title}`;
+    if (style === "huge") {
+      titleText = `# 🍪 ${title}`;
+      announcement = `## ${rawAnnouncement}`;
+    }
+    if (style === "quote") {
+      announcement = rawAnnouncement
+        .split("\\n")
+        .map(line => line.trim() ? `> ${line}` : ">")
+        .join("\\n");
+    }
+
     const embed = new EmbedBuilder()
       .setColor(0xBA7945)
-      .setTitle(`🍪 ${title}`)
-      .setDescription(announcement)
-      .setFooter({ text: "Cookie SMP" })
+      .setDescription(`${titleText}\\n\\n${announcement}`)
       .setTimestamp();
 
     await message.channel.send({

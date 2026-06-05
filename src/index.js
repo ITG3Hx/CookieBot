@@ -9,6 +9,7 @@ const rateLimit = require("express-rate-limit");
 
 const {
   ActionRowBuilder,
+  ActivityType,
   ButtonBuilder,
   ButtonStyle,
   Client,
@@ -42,6 +43,20 @@ const COUNTRY_ROLE_NAMES = env("COUNTRY_ROLE_NAMES", "Russia,Germany,USA")
 const NO_COUNTRY_ROLE_NAME = env("NO_COUNTRY_ROLE_NAME", "NoCountry");
 const COUNTRY_REMINDER_DELAY_MS = Number(env("COUNTRY_REMINDER_DELAY_MS", "600000"));
 const COUNTRY_CHANNEL_MENTION = env("COUNTRY_CHANNEL_MENTION", "🌏｜Country");
+
+const STATUS_ROTATION_MS = Number(env("STATUS_ROTATION_MS", "120000"));
+const BOT_STATUSES = [
+  "Watching Cookie SMP",
+  "Reviewing applications",
+  "Preparing testing",
+  "Building Cookie SMP",
+  "Checking applications",
+  "Preparing new updates",
+  "Watching the community",
+  "Working on testing",
+  "Managing Cookie SMP",
+  "Preparing launch systems"
+];
 
 if (!TOKEN || !STAFF_REVIEW_CHANNEL_ID) {
   console.error("Missing DISCORD_TOKEN or STAFF_REVIEW_CHANNEL_ID in environment variables.");
@@ -454,6 +469,38 @@ function restoreCountryReminderTimers() {
   }
 }
 
+let statusIndex = 0;
+let statusTimer = null;
+
+function updateBotStatus() {
+  if (!client.user || !BOT_STATUSES.length) return;
+
+  const status = BOT_STATUSES[statusIndex % BOT_STATUSES.length];
+  statusIndex++;
+
+  client.user.setPresence({
+    status: "online",
+    activities: [
+      {
+        name: status,
+        type: ActivityType.Watching
+      }
+    ]
+  }).catch(error => {
+    console.warn("[StatusRotation] Could not update bot status:", error.message);
+  });
+}
+
+function startStatusRotation() {
+  if (statusTimer) clearInterval(statusTimer);
+
+  updateBotStatus();
+
+  statusTimer = setInterval(() => {
+    updateBotStatus();
+  }, Math.max(30000, STATUS_ROTATION_MS));
+}
+
 const COOKIE_COMMANDS = [
   { name: "id", description: "Show your Discord user ID" },
   { name: "serverid", description: "Show this server ID" },
@@ -515,6 +562,7 @@ client.once("ready", () => {
 
   registerCookieCommands();
   restoreCountryReminderTimers();
+  startStatusRotation();
 
   const app = express();
 

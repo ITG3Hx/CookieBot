@@ -31,6 +31,13 @@ const STAFF_APPLICATION_LINK = env("STAFF_APPLICATION_LINK", "https://c050a4db.c
 const TESTER_APPLICATION_LINK = env("TESTER_APPLICATION_LINK", "https://02481932.cookiesmp-site.pages.dev/");
 const CREATOR_APPLICATION_LINK = env("CREATOR_APPLICATION_LINK", "PASTE_CREATOR_APPLICATION_LINK_HERE");
 
+const COUNTRY_ROLE_NAMES = env("COUNTRY_ROLE_NAMES", "Russia,Germany,USA")
+  .split(",")
+  .map(role => role.trim())
+  .filter(Boolean);
+
+const NO_COUNTRY_ROLE_NAME = env("NO_COUNTRY_ROLE_NAME", "NoCountry");
+
 if (!TOKEN || !STAFF_REVIEW_CHANNEL_ID) {
   console.error("Missing DISCORD_TOKEN or STAFF_REVIEW_CHANNEL_ID in environment variables.");
   process.exit(1);
@@ -62,7 +69,9 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.DirectMessages
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ],
   partials: [Partials.Channel]
 });
@@ -224,6 +233,82 @@ async function submitApplication(body) {
   return { id, dmSent };
 }
 
+function getRoleByName(guild, roleName) {
+  return guild.roles.cache.find(role =>
+    role.name.toLowerCase() === String(roleName).toLowerCase()
+  );
+}
+
+function hasCountryRole(member) {
+  return member.roles.cache.some(role =>
+    COUNTRY_ROLE_NAMES.some(name => role.name.toLowerCase() === name.toLowerCase())
+  );
+}
+
+async function updateNoCountry(member, reason = "NoCountry role sync") {
+  if (!member || member.user.bot) {
+    return { added: false, removed: false, skipped: true };
+  }
+
+  const noCountryRole = getRoleByName(member.guild, NO_COUNTRY_ROLE_NAME);
+
+  if (!noCountryRole) {
+    console.warn(`[NoCountry] Role "${NO_COUNTRY_ROLE_NAME}" not found`);
+    return { added: false, removed: false, skipped: true };
+  }
+
+  const hasCountry = hasCountryRole(member);
+  const hasNoCountry = member.roles.cache.has(noCountryRole.id);
+
+  if (!hasCountry && !hasNoCountry) {
+    await member.roles.add(noCountryRole, "Missing country role");
+    return { added: true, removed: false, skipped: false };
+  }
+
+  if (hasCountry && hasNoCountry) {
+    await member.roles.remove(noCountryRole, "Has country role");
+    return { added: false, removed: true, skipped: false };
+  }
+
+  return { added: false, removed: false, skipped: false };
+}
+
+async function syncNoCountry(guild) {
+  const noCountryRole = getRoleByName(guild, NO_COUNTRY_ROLE_NAME);
+
+  if (!noCountryRole) {
+    throw new Error(`Role "${NO_COUNTRY_ROLE_NAME}" not found`);
+  }
+
+  await guild.members.fetch();
+
+  let added = 0;
+  let removed = 0;
+  let failed = 0;
+
+  for (const member of guild.members.cache.values()) {
+    if (member.user.bot) continue;
+
+    try {
+      const result = await updateNoCountry(member, "Manual NoCountry sync");
+
+      if (result.added) added++;
+      if (result.removed) removed++;
+
+      await wait(250);
+    } catch (error) {
+      failed++;
+      console.warn(`[NoCountry] Failed for ${member.user.tag}: ${error.message}`);
+    }
+  }
+
+  return { added, removed, failed };
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 const COOKIE_COMMANDS = [
   { name: "id", description: "Show your Discord user ID" },
   { name: "serverid", description: "Show this server ID" },
@@ -231,7 +316,8 @@ const COOKIE_COMMANDS = [
   { name: "avatar", description: "Show your Discord avatar" },
   { name: "applications", description: "Show Cookie SMP application links" },
   { name: "status", description: "Show Cookie SMP status" },
-  { name: "help", description: "Show CookieBot commands" }
+  { name: "help", description: "Show CookieBot commands" },
+  { name: "sync-nocountry", description: "Sync the NoCountry role" }
 ];
 
 async function registerCookieCommands() {
@@ -392,6 +478,35 @@ client.on("interactionCreate", async interaction => {
         });
       }
 
+      if (interaction.commandName === "sync-nocountry") {
+        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
+          return interaction.reply({
+            content: "You need Manage Roles to use this.",
+            ephemeral: true
+          });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+          const result = await syncNoCountry(interaction.guild);
+
+          return interaction.editReply({
+            content: [
+              "🍪 **NoCountry Sync Finished**",
+              "",
+              `Added: \`${result.added}\``,
+              `Removed: \`${result.removed}\``,
+              `Failed: \`${result.failed}\``
+            ].join("\n")
+          });
+        } catch (error) {
+          return interaction.editReply({
+            content: `NoCountry sync failed: ${error.message}`
+          });
+        }
+      }
+
       if (interaction.commandName === "help") {
         return interaction.reply({
           content: [
@@ -403,7 +518,8 @@ client.on("interactionCreate", async interaction => {
             "`/avatar` - Get your avatar link",
             "`/applications` - Show application links",
             "`/status` - Show Cookie SMP status",
-            "`/help` - Show this command list"
+            "`/help` - Show this command list",
+            "`/sync-nocountry` - Sync the NoCountry role"
           ].join("\n"),
           ephemeral: true
         });
@@ -479,87 +595,12 @@ process.on("unhandledRejection", error => {
   console.error("Unhandled rejection:", error?.message || error);
 });
 
-client.login(TOKEN);
-
-// NoCountry role system
-const COUNTRY_ROLE_NAMES = ["Russia", "Germany", "USA"];
-const NO_COUNTRY_ROLE_NAME = "NoCountry";
-
-function getRoleByName(guild, roleName) {
-  return guild.roles.cache.find(role =>
-    role.name.toLowerCase() === roleName.toLowerCase()
-  );
-}
-
-function hasCountryRole(member) {
-  return member.roles.cache.some(role =>
-    COUNTRY_ROLE_NAMES.some(name => role.name.toLowerCase() === name.toLowerCase())
-  );
-}
-
-async function updateNoCountry(member, reason = "NoCountry role sync") {
-  if (!member || member.user.bot) return;
-
-  const noCountryRole = getRoleByName(member.guild, NO_COUNTRY_ROLE_NAME);
-
-  if (!noCountryRole) {
-    console.log(`[NoCountry] Role "${NO_COUNTRY_ROLE_NAME}" not found`);
-    return;
-  }
-
-  const hasCountry = hasCountryRole(member);
-  const hasNoCountry = member.roles.cache.has(noCountryRole.id);
-
-  if (!hasCountry && !hasNoCountry) {
-    await member.roles.add(noCountryRole, reason);
-  }
-
-  if (hasCountry && hasNoCountry) {
-    await member.roles.remove(noCountryRole, reason);
-  }
-}
-
-async function syncNoCountry(guild) {
-  const noCountryRole = getRoleByName(guild, NO_COUNTRY_ROLE_NAME);
-
-  if (!noCountryRole) {
-    throw new Error(`Role "${NO_COUNTRY_ROLE_NAME}" not found`);
-  }
-
-  await guild.members.fetch();
-
-  let added = 0;
-  let removed = 0;
-  let failed = 0;
-
-  for (const member of guild.members.cache.values()) {
-    if (member.user.bot) continue;
-
-    try {
-      const before = member.roles.cache.has(noCountryRole.id);
-
-      await updateNoCountry(member, "Manual NoCountry sync");
-
-      const after = member.roles.cache.has(noCountryRole.id);
-
-      if (!before && after) added++;
-      if (before && !after) removed++;
-
-      await new Promise(resolve => setTimeout(resolve, 250));
-    } catch (error) {
-      failed++;
-      console.log(`[NoCountry] Failed for ${member.user.tag}: ${error.message}`);
-    }
-  }
-
-  return { added, removed, failed };
-}
 
 client.on("guildMemberAdd", async member => {
   try {
     await updateNoCountry(member, "Joined without country role");
   } catch (error) {
-    console.log(`[NoCountry] Join update failed: ${error.message}`);
+    console.warn(`[NoCountry] Join update failed for ${member.user.tag}: ${error.message}`);
   }
 });
 
@@ -567,13 +608,13 @@ client.on("guildMemberUpdate", async (oldMember, newMember) => {
   try {
     await updateNoCountry(newMember, "Country role changed");
   } catch (error) {
-    console.log(`[NoCountry] Role update failed: ${error.message}`);
+    console.warn(`[NoCountry] Role update failed for ${newMember.user.tag}: ${error.message}`);
   }
 });
 
 client.on("messageCreate", async message => {
   if (!message.guild || message.author.bot) return;
-  if (message.content !== "!syncnocountry") return;
+  if (message.content.toLowerCase() !== "!syncnocountry") return;
 
   if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles)) {
     return message.reply("You need Manage Roles to use this.");
@@ -591,3 +632,5 @@ client.on("messageCreate", async message => {
     await msg.edit(`NoCountry sync failed: ${error.message}`);
   }
 });
+
+client.login(TOKEN);

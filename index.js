@@ -1,0 +1,139 @@
+"use strict";
+require("dotenv").config();
+
+const { Client, GatewayIntentBits, Partials, REST, Routes } = require("discord.js");
+const express    = require("express");
+const helmet     = require("helmet");
+const cors       = require("cors");
+const rateLimit  = require("express-rate-limit");
+
+const { initSecurity, handleSecurityCommand, SECURITY_COMMANDS } = require("./security");
+// ── NEW: tester linking ───────────────────────────────────────────────────────
+const { initTesters, handleTesterCommand, mountTesterApi, TESTER_COMMANDS } = require("./testers");
+// ── NEW: giveaways ──────────────────────────────────────────────────────────────
+const { initGiveaways, handleGiveawayCommand, GIVEAWAY_COMMANDS } = require("./giveaway");
+// ── NEW: utility commands (/id /serverid /channelid /userinfo /serverinfo /ping) ─
+const { handleUtilityCommand, UTILITY_COMMANDS } = require("./utility");
+// ── NEW: moderation (warn/timeout/kick/ban/purge + infraction history) ─────────
+const { initModeration, handleModerationCommand, MODERATION_COMMANDS } = require("./moderation");
+
+// ── Config ────────────────────────────────────────────────────────────────────
+const TOKEN          = process.env.DISCORD_TOKEN;
+const CLIENT_ID      = process.env.CLIENT_ID;
+const GUILD_ID       = process.env.GUILD_ID;
+const PORT           = process.env.PORT || 3000;
+const APP_CHANNEL_ID = process.env.APPLICATION_CHANNEL_ID;  // where applications get posted
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
+const OWNER_ID       = process.env.OWNER_ID;
+
+// ── Discord client ─────────────────────────────────────────────────────────────
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildModeration,   // ban events (anti-nuke)
+    GatewayIntentBits.GuildWebhooks,     // webhook events (anti-nuke)
+  ],
+  partials: [Partials.Channel],
+});
+
+// ── Express server ─────────────────────────────────────────────────────────────
+const app = express();
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
+app.use(rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false }));
+
+// ── Application endpoint (existing — unchanged) ────────────────────────────────
+app.post("/applications", async (req, res) => {
+  try {
+    const { type, applicationId, answers, rawText } = req.body || {};
+    if (!type || !answers) return res.status(400).json({ ok: false, error: "missing fields" });
+
+    const channel = APP_CHANNEL_ID ? await client.channels.fetch(APP_CHANNEL_ID).catch(() => null) : null;
+    if (channel) {
+      const { EmbedBuilder } = require("discord.js");
+      const embed = new EmbedBuilder()
+        .setTitle(`New Application — ${type}`)
+        .setColor(0xff8c00)
+        .setDescription(rawText || JSON.stringify(answers, null, 2).slice(0, 4000))
+        .setFooter({ text: `ID: ${applicationId || "unknown"}` })
+        .setTimestamp();
+      await channel.send({ embeds: [embed] });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[applications] error:", err.message);
+    return res.status(500).json({ ok: false, error: "internal error" });
+  }
+});
+
+// ── NEW: mount tester API routes ───────────────────────────────────────────────
+mountTesterApi(app);
+
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get("/", (_, res) => res.json({ ok: true, bot: "CookieBot", status: "online" }));
+
+// ── Register slash commands ────────────────────────────────────────────────────
+async function registerCommands() {
+  const rest = new REST({ version: "10" }).setToken(TOKEN);
+  const commands = [
+    ...UTILITY_COMMANDS,
+    ...MODERATION_COMMANDS,
+    ...SECURITY_COMMANDS,
+    ...TESTER_COMMANDS,        // ── NEW
+    ...GIVEAWAY_COMMANDS,      // ── NEW
+  ];
+  try {
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+    console.log(`[bot] Registered ${commands.length} slash commands.`);
+  } catch (err) {
+    console.error("[bot] Command registration failed:", err.message);
+  }
+}
+
+// ── Events ─────────────────────────────────────────────────────────────────────
+client.once("ready", async () => {
+  console.log(`[bot] Logged in as ${client.user.tag}`);
+
+  initSecurity(client, { logChannelId: LOG_CHANNEL_ID, ownerId: OWNER_ID });
+  initTesters(client);          // ── NEW
+  initGiveaways(client);        // ── NEW
+  initModeration(client, { modlogChannelId: process.env.MODLOG_CHANNEL_ID || LOG_CHANNEL_ID, ownerId: OWNER_ID });
+
+  await registerCommands();
+});
+
+client.on("interactionCreate", async (interaction) => {
+  try {
+    // utility commands (/id /serverid /channelid /userinfo /serverinfo /ping)
+    if (await handleUtilityCommand(interaction)) return;
+
+    // moderation commands (warn/timeout/kick/ban/purge + history)
+    if (await handleModerationCommand(interaction)) return;
+
+    // ── NEW: tester commands handled first ─────────────────────────────────────
+    if (await handleTesterCommand(interaction)) return;
+
+    // ── NEW: giveaway commands + Enter button ──────────────────────────────────
+    if (await handleGiveawayCommand(interaction)) return;
+
+    // existing: security commands
+    if (await handleSecurityCommand(interaction)) return;
+
+  } catch (err) {
+    console.error("[bot] interaction error:", err.message);
+    try {
+      const msg = { content: "Something went wrong.", ephemeral: true };
+      if (interaction.replied || interaction.deferred) await interaction.followUp(msg);
+      else await interaction.reply(msg);
+    } catch (_) {}
+  }
+});
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+app.listen(PORT, () => console.log(`[bot] Express listening on port ${PORT}`));
+client.login(TOKEN).catch(err => { console.error("[bot] Login failed:", err.message); process.exit(1); });

@@ -110,6 +110,7 @@ $("#logout").addEventListener("click", async () => {
 const loaders = {
   overview: loadOverview,
   tickets: loadTickets,
+  automation: loadAutomation,
   moderation: loadModeration,
   security: loadSecurity,
   giveaways: loadGiveaways,
@@ -225,6 +226,8 @@ document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeMod
 async function loadOverview() {
   const d = await api("/overview");
   state.bot = { tag: d.bot.ready ? d.bot.tag : "CookieBot", avatar: d.bot.ready ? d.bot.avatar : null };
+
+  state.guildName = d.guild?.name || "your server";
 
   const pill = $("#bot-pill");
   pill.className = "pill " + (d.bot.ready ? "on" : "off");
@@ -599,6 +602,277 @@ async function openTicketModal(channelId) {
     try { const fresh = await api(`/tickets/${channelId}/messages`); render(fresh.messages); } catch (e) {}
   }, 7000);
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Automation
+// ══════════════════════════════════════════════════════════════════════════════
+const RR_STYLE_LABELS = { primary: "Blurple", secondary: "Grey", success: "Green", danger: "Red" };
+const RESP_MATCHES = [["contains", "contains"], ["word", "whole word"], ["startsWith", "starts with"], ["exact", "exact"]];
+
+// fill {placeholders} with readable sample values for the live previews
+function samplePlaceholders(str) {
+  return String(str || "")
+    .replace(/\{user\}/g, "@You")
+    .replace(/\{tag\}/g, "You#0001")
+    .replace(/\{name\}/g, "You")
+    .replace(/\{username\}/g, "You")
+    .replace(/\{server\}/g, state.guildName || "CookieSMP")
+    .replace(/\{membercount\}|\{memberCount\}|\{count\}/g, "128")
+    .replace(/\{id\}/g, "123456789012345678");
+}
+
+async function loadAutomation() {
+  await loadGuildData().catch(() => {});
+  const d = await api("/automation");
+  const a = d.automation;
+  state.automation = a;
+
+  fillRoleSelect($("#au-ar-role-pick"), { none: "pick a role" });
+  fillRoleSelect($("#au-ar-botrole-pick"), { none: "pick a role" });
+  fillRoleSelect($("#au-rr-role-pick"), { none: "pick a role" });
+  fillChannelSelect($("#au-wel-channel"), { none: "no channel set", value: a.welcome.channelId });
+  fillChannelSelect($("#au-bye-channel"), { none: "no channel set", value: a.goodbye.channelId });
+  fillChannelSelect($("#au-rr-channel"), { none: "pick a channel" });
+
+  // autorole
+  $("#au-ar-enabled").checked = a.autorole.enabled;
+  $("#au-ar-delay").value = a.autorole.delaySeconds || 0;
+  renderAutoroleChips();
+
+  // welcome
+  $("#au-wel-enabled").checked = a.welcome.enabled;
+  $("#au-wel-msg").value = a.welcome.message;
+  $("#au-wel-embed").checked = a.welcome.useEmbed;
+  $("#au-wel-color").value = normalizeHex(a.welcome.embedColor) || "#ff8c00";
+  $("#au-wel-ping").checked = a.welcome.pingUser;
+  $("#au-wel-dm").checked = a.welcome.dmEnabled;
+  $("#au-wel-dmmsg").value = a.welcome.dmMessage;
+  $("#au-wel-dm-wrap").classList.toggle("hidden", !a.welcome.dmEnabled);
+
+  // goodbye
+  $("#au-bye-enabled").checked = a.goodbye.enabled;
+  $("#au-bye-msg").value = a.goodbye.message;
+  $("#au-bye-embed").checked = a.goodbye.useEmbed;
+  $("#au-bye-color").value = normalizeHex(a.goodbye.embedColor) || "#8b6cff";
+
+  // reaction roles
+  $("#au-rr-title").value = a.reactionRoles.title;
+  $("#au-rr-text").value = a.reactionRoles.text;
+  $("#au-rr-color").value = normalizeHex(a.reactionRoles.color) || "#8b6cff";
+  renderRRRows();
+
+  renderResponders();
+  renderWelcomePreview();
+  renderGoodbyePreview();
+  renderRRPreview();
+}
+
+// ── autorole chips ──
+function renderAutoroleChips() {
+  const a = state.automation.autorole;
+  renderChips($("#au-ar-roles"), a.roleIds, roleName, "au-ar-rm");
+  renderChips($("#au-ar-botroles"), a.botRoleIds, roleName, "au-ar-bot-rm");
+}
+$("#au-ar-role-add").addEventListener("click", () => {
+  const id = $("#au-ar-role-pick").value; if (!id) return;
+  const arr = state.automation.autorole.roleIds;
+  if (!arr.includes(id)) arr.push(id);
+  renderAutoroleChips();
+});
+$("#au-ar-botrole-add").addEventListener("click", () => {
+  const id = $("#au-ar-botrole-pick").value; if (!id) return;
+  const arr = state.automation.autorole.botRoleIds;
+  if (!arr.includes(id)) arr.push(id);
+  renderAutoroleChips();
+});
+
+// ── reaction-role rows ──
+function renderRRRows() {
+  const roles = state.automation.reactionRoles.roles;
+  $("#au-rr-roles").innerHTML = roles.length ? roles.map((r, i) => `
+    <div class="rr-row">
+      <span class="rr-role-name" title="${esc(roleName(r.roleId))}">${esc(roleName(r.roleId))}</span>
+      <input class="input" data-rr-i="${i}" data-rr-f="emoji" value="${esc(r.emoji || "")}" placeholder="emoji" maxlength="64">
+      <input class="input" data-rr-i="${i}" data-rr-f="label" value="${esc(r.label || "")}" placeholder="Button label" maxlength="80">
+      <select class="input" data-rr-i="${i}" data-rr-f="style">
+        ${Object.entries(RR_STYLE_LABELS).map(([v, l]) => `<option value="${v}" ${r.style === v ? "selected" : ""}>${l}</option>`).join("")}
+      </select>
+      <button class="btn ghost mini" data-rr-rm="${i}" title="remove">✕</button>
+    </div>`).join("") : `<p class="muted small">No roles on the panel yet. Add one below.</p>`;
+}
+$("#au-rr-role-add").addEventListener("click", () => {
+  const id = $("#au-rr-role-pick").value; if (!id) return;
+  const roles = state.automation.reactionRoles.roles;
+  if (roles.some(r => r.roleId === id)) { toast("That role is already on the panel", true); return; }
+  roles.push({ roleId: id, label: roleName(id).slice(0, 80), emoji: "", style: "secondary" });
+  renderRRRows(); renderRRPreview();
+});
+function rrRowEdit(el) {
+  const i = +el.dataset.rrI;
+  const r = state.automation.reactionRoles.roles[i];
+  if (r) { r[el.dataset.rrF] = el.value; renderRRPreview(); }
+}
+$("#au-rr-roles").addEventListener("input", (ev) => { const el = ev.target.closest("[data-rr-i]"); if (el) rrRowEdit(el); });
+$("#au-rr-roles").addEventListener("change", (ev) => { const el = ev.target.closest("[data-rr-i]"); if (el) rrRowEdit(el); });
+$("#au-rr-roles").addEventListener("click", (ev) => {
+  const rm = ev.target.closest("[data-rr-rm]"); if (!rm) return;
+  state.automation.reactionRoles.roles.splice(+rm.dataset.rrRm, 1);
+  renderRRRows(); renderRRPreview();
+});
+
+// ── auto-responder rows ──
+function renderResponders() {
+  const list = state.automation.autoResponders;
+  $("#au-resp-list").innerHTML = list.length ? list.map((r, i) => `
+    <div class="resp-row">
+      <label class="switch sm"><input type="checkbox" data-resp-i="${i}" data-resp-f="enabled" ${r.enabled !== false ? "checked" : ""}><span class="track"></span></label>
+      <input class="input" data-resp-i="${i}" data-resp-f="trigger" value="${esc(r.trigger || "")}" placeholder="trigger word" maxlength="100">
+      <select class="input" data-resp-i="${i}" data-resp-f="match">
+        ${RESP_MATCHES.map(([v, l]) => `<option value="${v}" ${r.match === v ? "selected" : ""}>${l}</option>`).join("")}
+      </select>
+      <input class="input" data-resp-i="${i}" data-resp-f="response" value="${esc(r.response || "")}" placeholder="what the bot replies" maxlength="1500">
+      <label class="check mini" title="delete the triggering message"><input type="checkbox" data-resp-i="${i}" data-resp-f="deleteTrigger" ${r.deleteTrigger ? "checked" : ""}> del</label>
+      <button class="btn ghost mini" data-resp-rm="${i}" title="remove">✕</button>
+    </div>`).join("") : `<p class="muted small">No auto-replies yet.</p>`;
+}
+function respRowEdit(el) {
+  const r = state.automation.autoResponders[+el.dataset.respI];
+  if (r) r[el.dataset.respF] = (el.type === "checkbox") ? el.checked : el.value;
+}
+$("#au-resp-list").addEventListener("input", (ev) => { const el = ev.target.closest("[data-resp-i]"); if (el) respRowEdit(el); });
+$("#au-resp-list").addEventListener("change", (ev) => { const el = ev.target.closest("[data-resp-i]"); if (el) respRowEdit(el); });
+$("#au-resp-list").addEventListener("click", (ev) => {
+  const rm = ev.target.closest("[data-resp-rm]"); if (!rm) return;
+  state.automation.autoResponders.splice(+rm.dataset.respRm, 1);
+  renderResponders();
+});
+$("#au-resp-add").addEventListener("click", () => {
+  state.automation.autoResponders.push({ id: "", trigger: "", match: "contains", response: "", deleteTrigger: false, enabled: true });
+  renderResponders();
+});
+
+// ── autorole chip removal (delegated) ──
+$("#view-automation").addEventListener("click", (ev) => {
+  const arRm = ev.target.closest("[data-au-ar-rm]");
+  const botRm = ev.target.closest("[data-au-ar-bot-rm]");
+  const a = state.automation?.autorole;
+  if (!a) return;
+  if (arRm) { const i = a.roleIds.indexOf(arRm.dataset.auArRm); if (i >= 0) a.roleIds.splice(i, 1); renderAutoroleChips(); }
+  else if (botRm) { const i = a.botRoleIds.indexOf(botRm.dataset.auArBotRm); if (i >= 0) a.botRoleIds.splice(i, 1); renderAutoroleChips(); }
+});
+
+// ── live previews ──
+function botBubble(inner) {
+  const b = state.bot || {};
+  return `<div class="dc-msg">${botAvatarHTML()}<div class="dc-msg-main">
+    <div class="dc-msg-head"><span class="dc-name">${esc(b.tag || "CookieBot")}</span><span class="dc-badge">BOT</span><span class="dc-time">now</span></div>
+    ${inner}</div></div>`;
+}
+function renderWelcomePreview() {
+  const useEmbed = $("#au-wel-embed").checked;
+  const color = normalizeHex($("#au-wel-color").value) || "#ff8c00";
+  const text = discordMd(samplePlaceholders($("#au-wel-msg").value || ""));
+  const ping = (useEmbed && $("#au-wel-ping").checked) ? `<div class="dc-body" style="margin-bottom:4px"><span class="dc-mention">@You</span></div>` : "";
+  const body = useEmbed
+    ? `${ping}<div class="dc-embed" style="border-left-color:${esc(color)}"><div class="dc-embed-desc">${text}</div></div>`
+    : `<div class="dc-body">${text}</div>`;
+  $("#au-wel-preview").innerHTML = botBubble(body);
+}
+function renderGoodbyePreview() {
+  const useEmbed = $("#au-bye-embed").checked;
+  const color = normalizeHex($("#au-bye-color").value) || "#8b6cff";
+  const text = discordMd(samplePlaceholders($("#au-bye-msg").value || ""));
+  const body = useEmbed
+    ? `<div class="dc-embed" style="border-left-color:${esc(color)}"><div class="dc-embed-desc">${text}</div></div>`
+    : `<div class="dc-body">${text}</div>`;
+  $("#au-bye-preview").innerHTML = botBubble(body);
+}
+function renderRRPreview() {
+  const color = normalizeHex($("#au-rr-color").value) || "#8b6cff";
+  const title = esc($("#au-rr-title").value.trim() || "Pick your roles");
+  const text = discordMd(samplePlaceholders($("#au-rr-text").value || "Click a button to get a role."));
+  const roles = state.automation?.reactionRoles.roles || [];
+  const btns = roles.length
+    ? roles.map(r => `<span class="dc-btn dc-btn-${esc(r.style || "secondary")}">${r.emoji ? esc(r.emoji) + " " : ""}${esc(r.label || "Role")}</span>`).join("")
+    : `<span class="muted small">add roles to see the buttons</span>`;
+  $("#au-rr-preview").innerHTML = `
+    <div class="dc-embed" style="border-left-color:${esc(color)}">
+      <div class="dc-embed-title">${title}</div>
+      <div class="dc-embed-desc">${text}</div>
+    </div>
+    <div class="dc-components">${btns}</div>`;
+}
+["#au-wel-msg", "#au-wel-color", "#au-wel-embed", "#au-wel-ping"].forEach(s => {
+  const el = $(s); el.addEventListener("input", renderWelcomePreview); el.addEventListener("change", renderWelcomePreview);
+});
+["#au-bye-msg", "#au-bye-color", "#au-bye-embed"].forEach(s => {
+  const el = $(s); el.addEventListener("input", renderGoodbyePreview); el.addEventListener("change", renderGoodbyePreview);
+});
+["#au-rr-title", "#au-rr-text", "#au-rr-color"].forEach(s => {
+  const el = $(s); el.addEventListener("input", renderRRPreview); el.addEventListener("change", renderRRPreview);
+});
+$("#au-wel-dm").addEventListener("change", () => $("#au-wel-dm-wrap").classList.toggle("hidden", !$("#au-wel-dm").checked));
+
+// ── collect + save + actions ──
+function collectAutomation() {
+  const a = state.automation;
+  return {
+    autorole: {
+      enabled: $("#au-ar-enabled").checked,
+      roleIds: a.autorole.roleIds,
+      botRoleIds: a.autorole.botRoleIds,
+      delaySeconds: Math.max(0, Math.min(600, parseInt($("#au-ar-delay").value, 10) || 0)),
+    },
+    welcome: {
+      enabled: $("#au-wel-enabled").checked,
+      channelId: $("#au-wel-channel").value || null,
+      message: $("#au-wel-msg").value,
+      useEmbed: $("#au-wel-embed").checked,
+      embedColor: normalizeHex($("#au-wel-color").value) || "#ff8c00",
+      pingUser: $("#au-wel-ping").checked,
+      dmEnabled: $("#au-wel-dm").checked,
+      dmMessage: $("#au-wel-dmmsg").value,
+    },
+    goodbye: {
+      enabled: $("#au-bye-enabled").checked,
+      channelId: $("#au-bye-channel").value || null,
+      message: $("#au-bye-msg").value,
+      useEmbed: $("#au-bye-embed").checked,
+      embedColor: normalizeHex($("#au-bye-color").value) || "#8b6cff",
+    },
+    reactionRoles: {
+      title: $("#au-rr-title").value,
+      text: $("#au-rr-text").value,
+      color: normalizeHex($("#au-rr-color").value) || "#8b6cff",
+      roles: a.reactionRoles.roles,
+    },
+    autoResponders: a.autoResponders,
+  };
+}
+$("#au-save").addEventListener("click", busy($("#au-save"), async () => {
+  const r = await api("/automation", { method: "PUT", body: collectAutomation() });
+  state.automation = r.automation;
+  $("#au-status").textContent = "Saved " + new Date().toLocaleTimeString();
+  toast("Automation saved");
+}));
+$("#au-ar-applyall").addEventListener("click", busy($("#au-ar-applyall"), async () => {
+  if (!confirm("Give the configured autoroles to every current member now?")) return;
+  await api("/automation", { method: "PUT", body: collectAutomation() });
+  const r = await api("/automation/autorole/apply-all", { method: "POST" });
+  toast(`Autorole applied: ${r.changed} updated${r.failed ? `, ${r.failed} failed` : ""}`);
+}));
+$("#au-wel-test").addEventListener("click", busy($("#au-wel-test"), async () => {
+  await api("/automation", { method: "PUT", body: collectAutomation() });
+  await api("/automation/welcome/test", { method: "POST" });
+  toast("Test welcome sent to the channel");
+}));
+$("#au-rr-post").addEventListener("click", busy($("#au-rr-post"), async () => {
+  const channelId = $("#au-rr-channel").value;
+  if (!channelId) throw new Error("Pick a channel to post the panel in");
+  await api("/automation", { method: "PUT", body: collectAutomation() });
+  await api("/automation/reaction-roles/post", { method: "POST", body: { channelId } });
+  toast("Reaction-role panel posted");
+}));
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Moderation

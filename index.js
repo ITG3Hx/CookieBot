@@ -18,6 +18,8 @@ const { handleUtilityCommand, UTILITY_COMMANDS } = require("./utility");
 const { initModeration, handleModerationCommand, MODERATION_COMMANDS } = require("./moderation");
 // ── NEW: ticket system (support channel panel + private ticket channels) ───────
 const { initTickets, handleTicketInteraction, TICKET_COMMANDS } = require("./tickets");
+// ── NEW: server automations (autorole, welcome/goodbye, reaction roles, auto-reply)
+const { initAutomation, handleAutomationInteraction } = require("./automation");
 // ── NEW: web control panel ─────────────────────────────────────────────────────
 const { mountDashboard, applyStoredPresence } = require("./dashboard");
 
@@ -121,6 +123,7 @@ client.once("ready", async () => {
   initGiveaways(client);        // ── NEW
   initModeration(client, { modlogChannelId: process.env.MODLOG_CHANNEL_ID || LOG_CHANNEL_ID, ownerId: OWNER_ID });
   initTickets(client);          // ── NEW
+  initAutomation(client);       // ── NEW: autorole / welcome / goodbye / reaction roles / auto-reply
   applyStoredPresence(client);  // ── NEW: presence picked in the dashboard survives restarts
 
   await registerCommands();
@@ -136,6 +139,9 @@ client.on("interactionCreate", async (interaction) => {
 
     // ── NEW: tickets (panel button, modals, /ticket, /ticketpanel) ─────────────
     if (await handleTicketInteraction(interaction)) return;
+
+    // ── NEW: reaction-role buttons (rr_<roleId>) ───────────────────────────────
+    if (await handleAutomationInteraction(interaction)) return;
 
     // ── NEW: tester commands handled first ─────────────────────────────────────
     if (await handleTesterCommand(interaction)) return;

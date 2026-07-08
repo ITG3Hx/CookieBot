@@ -32,6 +32,7 @@ const moderation = require("./moderation");
 const security   = require("./security");
 const giveaway   = require("./giveaway");
 const testers    = require("./testers");
+const automation = require("./automation");
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const COOKIE_NAME   = "cb_dash";
@@ -286,6 +287,13 @@ function mountDashboard(app, discordClient, options = {}) {
     if (!Number.isInteger(n) || n < 1) return res.status(400).json({ ok: false, error: "bad ticket number" });
     send(res, tickets.webGetTranscript(n));
   }));
+
+  // ── automation (autorole, welcome/goodbye, reaction roles, auto-responder) ──
+  api.get("/automation", (req, res) => res.json({ ok: true, ...automation.webGetAutomation() }));
+  api.put("/automation", wrap(async (req, res) => send(res, automation.webUpdateAutomation(req.body || {}))));
+  api.post("/automation/reaction-roles/post", requireReady, wrap(async (req, res) => send(res, await automation.webPostReactionRoles(String(req.body?.channelId || "")))));
+  api.post("/automation/autorole/apply-all", requireReady, wrap(async (req, res) => send(res, await automation.webApplyAutoroleToAll(getGuild()))));
+  api.post("/automation/welcome/test", requireReady, wrap(async (req, res) => send(res, await automation.webWelcomeTest(getGuild()))));
 
   // ── send a message / announcement as the bot ──
   api.post("/message", requireReady, wrap(async (req, res) => {

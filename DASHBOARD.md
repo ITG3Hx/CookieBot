@@ -35,12 +35,17 @@ What you can do from the page:
 
 ## Automation (Automation tab)
 
-Everything here is optional and off until you switch it on with the toggle in each card. Hit **Save all automation** when done.
+Everything here is optional and off until you switch it on with the toggle in each card. Changes **auto-save as you type** (you'll see "Saved" at the bottom), and there's still a **Save all automation** button if you want it. A card with an orange edge is currently switched on.
 
 - **Autorole** — pick the role(s) new members get the instant they join (and separate role(s) for bots). Optional delay before assigning. "Apply to all current members" backfills everyone already in the server. The bot's role must sit **above** any role it gives out, and it needs **Manage Roles**.
 - **Welcome / Goodbye** — post to a channel when someone joins or leaves, as plain text or an embed, with a live preview. Welcome can also DM the new member. Placeholders: `{user}` (mention), `{name}`, `{tag}`, `{username}`, `{server}`, `{count}` (member count), `{id}`.
 - **Reaction roles** — build a panel of buttons; members click one to give themselves that role, click again to remove it. Customize each button's label, emoji and color, preview it live, then post it to any channel.
-- **Auto-responder** — when a message matches a trigger (contains / whole word / starts with / exact) the bot replies. Optionally delete the triggering message. Each trigger has a short per-channel cooldown so it can't be spammed. Good for FAQ answers ("ip", "rules", "store").
+- **Auto-responder** — when a message matches a trigger (contains / whole word / starts with / exact) the bot replies. Optionally delete the triggering message. Each trigger has a short per-channel cooldown so it can't be spammed. Good for FAQ answers ("ip", "rules", "store"). Type `#` in any message field to pick a channel.
+- **Sticky messages** — keep a message glued to the bottom of a channel; it reposts after people talk (only when someone actually sends a message, so it never spams an idle channel). One per channel, plain or embed. Great for a rules reminder or the server IP.
+- **Message logger** — log messages to a channel for audits, including **edits and deletes**. Add channels to the **skip list** so noisy or protected channels (like #rules) are never logged.
+- **Auto-moderation** — auto-delete rule-breaking messages and optionally time the user out. Filters: caps spam, mention spam, repeated messages, banned words, Discord-invite links, and all links. Set the timeout length or choose "just delete, don't timeout". **Exclusions** let you exempt staff **roles** and whole **channels** (e.g. #memes, #rules) so it never touches them.
+
+**Nothing here edits, resets, or clears your existing channel content.** Auto-mod only removes new rule-breaking messages, and only in channels you haven't excluded. Put #rules on the ignore lists and the bot will leave it completely alone.
 
 ## Notes
 

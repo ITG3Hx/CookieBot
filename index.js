@@ -43,7 +43,7 @@ const client = new Client({
     GatewayIntentBits.GuildModeration,   // ban events (anti-nuke)
     GatewayIntentBits.GuildWebhooks,     // webhook events (anti-nuke)
   ],
-  partials: [Partials.Channel],
+  partials: [Partials.Channel, Partials.Message],   // needed to log deletes/edits of uncached messages
 });
 
 // ── Express server ─────────────────────────────────────────────────────────────

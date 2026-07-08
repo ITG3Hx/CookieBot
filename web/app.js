@@ -635,6 +635,9 @@ async function loadAutomation() {
   fillChannelSelect($("#au-bye-channel"), { none: "no channel set", value: a.goodbye.channelId });
   fillChannelSelect($("#au-rr-channel"), { none: "pick a channel" });
   fillChannelSelect($("#au-log-channel"), { none: "no channel set", value: a.messageLogger.channelId });
+  fillChannelSelect($("#au-log-ignore-pick"), { none: "pick a channel" });
+  fillChannelSelect($("#au-mod-ignore-ch-pick"), { none: "pick a channel" });
+  fillChannelSelect($("#au-sticky-channel-pick"), { none: "pick a channel" });
 
   // autorole
   $("#au-ar-enabled").checked = a.autorole.enabled;
@@ -670,13 +673,27 @@ async function loadAutomation() {
 
   // message logger
   $("#au-log-enabled").checked = a.messageLogger.enabled;
+  $("#au-log-deletes").checked = a.messageLogger.logDeletes !== false;
+  $("#au-log-edits").checked = a.messageLogger.logEdits !== false;
+  renderLogIgnore();
 
   // auto-moderation
-  $("#au-mod-enabled").checked = a.autoModeration.enabled;
-  $("#au-mod-caps").value = a.autoModeration.capsSensitivity;
-  $("#au-mod-capslen").value = a.autoModeration.capsMinLength;
-  $("#au-mod-mentions").value = a.autoModeration.mentionLimit;
+  const m = a.autoModeration;
+  $("#au-mod-enabled").checked = m.enabled;
+  $("#au-mod-invites").checked = !!m.blockInvites;
+  $("#au-mod-links").checked = !!m.blockLinks;
+  $("#au-mod-caps").value = m.capsSensitivity;
+  $("#au-mod-capslen").value = m.capsMinLength;
+  $("#au-mod-mentions").value = m.mentionLimit;
+  $("#au-mod-repeat").value = m.repeatLimit;
+  $("#au-mod-timeout").value = m.timeoutSeconds;
+  $("#au-mod-deleteonly").checked = !!m.deleteOnly;
   renderModIgnoreRoles();
+  renderModIgnoreChannels();
+  renderModWords();
+
+  // sticky messages
+  renderStickies();
 
   // channel mention autocomplete on message fields
   setupChannelMention($("#au-wel-msg"));
@@ -833,24 +850,77 @@ function renderRRPreview() {
 });
 $("#au-wel-dm").addEventListener("change", () => $("#au-wel-dm-wrap").classList.toggle("hidden", !$("#au-wel-dm").checked));
 
-// ── auto-moderation ignore roles ──
-function renderModIgnoreRoles() {
-  renderChips($("#au-mod-ignore-roles"), state.automation.autoModeration.ignoreRoles, roleName, "au-mod-ig-rm");
+// ── auto-mod + logger chip lists ──
+function renderModIgnoreRoles()    { renderChips($("#au-mod-ignore-roles"),    state.automation.autoModeration.ignoreRoles,    roleName,    "au-mod-ig-rm"); }
+function renderModIgnoreChannels() { renderChips($("#au-mod-ignore-channels"), state.automation.autoModeration.ignoreChannels, channelName, "au-mod-igch-rm"); }
+function renderLogIgnore()         { renderChips($("#au-log-ignore"),          state.automation.messageLogger.ignoreChannels,  channelName, "au-log-ig-rm"); }
+function renderModWords() {
+  const words = state.automation.autoModeration.bannedWords;
+  $("#au-mod-words").innerHTML = words.length
+    ? words.map(w => `<span class="chip">${esc(w)}<button title="remove" data-au-mod-word-rm="${esc(w)}">x</button></span>`).join("")
+    : `<span class="muted small">none</span>`;
 }
-$("#au-mod-ignore-role-add").addEventListener("click", () => {
-  const id = $("#au-mod-ignore-role-pick").value; if (!id) return;
-  const arr = state.automation.autoModeration.ignoreRoles;
-  if (!arr.includes(id)) arr.push(id);
-  renderModIgnoreRoles();
-  scheduleAutoSave();
+
+// add a value (id or word) to a list, dedupe, re-render, save
+function addToList(arr, val, render) { if (!val) return; if (!arr.includes(val)) arr.push(val); render(); scheduleAutoSave(); }
+// delegated, id/word-based chip removal (matches how renderChips stores the value)
+function bindChipRemoval(sel, attr, getArr, render) {
+  $(sel).addEventListener("click", (ev) => {
+    const btn = ev.target.closest(`[data-${attr}]`); if (!btn) return;
+    const arr = getArr();
+    const i = arr.indexOf(btn.getAttribute(`data-${attr}`));
+    if (i >= 0) arr.splice(i, 1);
+    render(); scheduleAutoSave();
+  });
+}
+
+$("#au-mod-ignore-role-add").addEventListener("click", () => addToList(state.automation.autoModeration.ignoreRoles, $("#au-mod-ignore-role-pick").value, renderModIgnoreRoles));
+$("#au-mod-ignore-ch-add").addEventListener("click",   () => addToList(state.automation.autoModeration.ignoreChannels, $("#au-mod-ignore-ch-pick").value, renderModIgnoreChannels));
+$("#au-log-ignore-add").addEventListener("click",      () => addToList(state.automation.messageLogger.ignoreChannels, $("#au-log-ignore-pick").value, renderLogIgnore));
+$("#au-mod-word-add").addEventListener("click", () => {
+  const w = $("#au-mod-word-input").value.trim().toLowerCase(); if (!w) return;
+  addToList(state.automation.autoModeration.bannedWords, w, renderModWords);
+  $("#au-mod-word-input").value = "";
 });
-$("#au-mod-ignore-roles").addEventListener("click", (ev) => {
-  const rm = ev.target.closest("[data-au-mod-ig-rm]");
-  if (!rm) return;
-  const idx = +rm.dataset.auModIgRm;
-  state.automation.autoModeration.ignoreRoles.splice(idx, 1);
-  renderModIgnoreRoles();
-  scheduleAutoSave();
+$("#au-mod-word-input").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); $("#au-mod-word-add").click(); } });
+
+bindChipRemoval("#au-mod-ignore-roles",    "au-mod-ig-rm",    () => state.automation.autoModeration.ignoreRoles,    renderModIgnoreRoles);
+bindChipRemoval("#au-mod-ignore-channels", "au-mod-igch-rm",  () => state.automation.autoModeration.ignoreChannels, renderModIgnoreChannels);
+bindChipRemoval("#au-log-ignore",          "au-log-ig-rm",    () => state.automation.messageLogger.ignoreChannels,  renderLogIgnore);
+bindChipRemoval("#au-mod-words",            "au-mod-word-rm", () => state.automation.autoModeration.bannedWords,    renderModWords);
+
+// ── sticky messages ──
+function renderStickies() {
+  const list = state.automation.stickyMessages;
+  $("#au-sticky-list").innerHTML = list.length ? list.map((s, i) => `
+    <div class="sticky-row">
+      <div class="row between">
+        <label class="switch sm"><input type="checkbox" data-sticky-i="${i}" data-sticky-f="enabled" ${s.enabled !== false ? "checked" : ""}><span class="track"></span></label>
+        <span class="sticky-ch">#${esc(channelName(s.channelId))}</span>
+        <label class="check mini"><input type="checkbox" data-sticky-i="${i}" data-sticky-f="useEmbed" ${s.useEmbed ? "checked" : ""}> embed</label>
+        <input class="input mini-color" type="color" data-sticky-i="${i}" data-sticky-f="embedColor" value="${esc(normalizeHex(s.embedColor) || "#ff8c00")}">
+        <button class="btn ghost mini" data-sticky-rm="${i}" title="remove">✕</button>
+      </div>
+      <textarea class="input" data-sticky-i="${i}" data-sticky-f="message" rows="2" maxlength="1500" placeholder="Sticky message text (Discord markdown works)">${esc(s.message || "")}</textarea>
+    </div>`).join("") : `<p class="muted small">No sticky messages yet. Pick a channel below to add one.</p>`;
+}
+function stickyEdit(el) {
+  const s = state.automation.stickyMessages[+el.dataset.stickyI];
+  if (s) s[el.dataset.stickyF] = (el.type === "checkbox") ? el.checked : el.value;
+}
+$("#au-sticky-list").addEventListener("input",  (ev) => { const el = ev.target.closest("[data-sticky-i]"); if (el) { stickyEdit(el); scheduleAutoSave(); } });
+$("#au-sticky-list").addEventListener("change", (ev) => { const el = ev.target.closest("[data-sticky-i]"); if (el) { stickyEdit(el); scheduleAutoSave(); } });
+$("#au-sticky-list").addEventListener("click",  (ev) => {
+  const rm = ev.target.closest("[data-sticky-rm]"); if (!rm) return;
+  state.automation.stickyMessages.splice(+rm.dataset.stickyRm, 1);
+  renderStickies(); scheduleAutoSave();
+});
+$("#au-sticky-add").addEventListener("click", () => {
+  const chId = $("#au-sticky-channel-pick").value; if (!chId) { toast("Pick a channel first", true); return; }
+  const list = state.automation.stickyMessages;
+  if (list.some(s => s.channelId === chId)) { toast("That channel already has a sticky", true); return; }
+  list.push({ id: "", channelId: chId, message: "", useEmbed: false, embedColor: "#ff8c00", enabled: true });
+  renderStickies(); scheduleAutoSave();
 });
 
 // ── channel autocomplete ──
@@ -900,7 +970,7 @@ function scheduleAutoSave() {
   }, 1200);  // wait 1.2s after last change
 }
 // add auto-save listeners to all automation fields
-document.querySelectorAll("#au-ar-enabled, #au-ar-delay, #au-wel-enabled, #au-wel-msg, #au-wel-channel, #au-wel-embed, #au-wel-color, #au-wel-ping, #au-wel-dm, #au-wel-dmmsg, #au-bye-enabled, #au-bye-msg, #au-bye-channel, #au-bye-embed, #au-bye-color, #au-rr-title, #au-rr-text, #au-rr-color, #au-log-enabled, #au-log-channel, #au-mod-enabled, #au-mod-caps, #au-mod-capslen, #au-mod-mentions")
+document.querySelectorAll("#au-ar-enabled, #au-ar-delay, #au-wel-enabled, #au-wel-msg, #au-wel-channel, #au-wel-embed, #au-wel-color, #au-wel-ping, #au-wel-dm, #au-wel-dmmsg, #au-bye-enabled, #au-bye-msg, #au-bye-channel, #au-bye-embed, #au-bye-color, #au-rr-title, #au-rr-text, #au-rr-color, #au-log-enabled, #au-log-channel, #au-log-deletes, #au-log-edits, #au-mod-enabled, #au-mod-caps, #au-mod-capslen, #au-mod-mentions, #au-mod-repeat, #au-mod-invites, #au-mod-links, #au-mod-timeout, #au-mod-deleteonly")
   .forEach(el => { el.addEventListener("input", scheduleAutoSave); el.addEventListener("change", scheduleAutoSave); });
 
 // ── collect + save + actions ──
@@ -940,14 +1010,25 @@ function collectAutomation() {
     messageLogger: {
       enabled: $("#au-log-enabled").checked,
       channelId: $("#au-log-channel").value || null,
+      ignoreChannels: a.messageLogger.ignoreChannels,
+      logDeletes: $("#au-log-deletes").checked,
+      logEdits: $("#au-log-edits").checked,
     },
     autoModeration: {
       enabled: $("#au-mod-enabled").checked,
       capsSensitivity: Math.max(0, Math.min(100, parseInt($("#au-mod-caps").value, 10) || 70)),
       capsMinLength: Math.max(5, Math.min(1000, parseInt($("#au-mod-capslen").value, 10) || 10)),
       mentionLimit: Math.max(1, Math.min(50, parseInt($("#au-mod-mentions").value, 10) || 5)),
+      repeatLimit: Math.max(1, Math.min(20, parseInt($("#au-mod-repeat").value, 10) || 3)),
+      blockInvites: $("#au-mod-invites").checked,
+      blockLinks: $("#au-mod-links").checked,
+      bannedWords: a.autoModeration.bannedWords,
+      timeoutSeconds: Math.max(10, Math.min(2419200, parseInt($("#au-mod-timeout").value, 10) || 60)),
+      deleteOnly: $("#au-mod-deleteonly").checked,
       ignoreRoles: a.autoModeration.ignoreRoles,
+      ignoreChannels: a.autoModeration.ignoreChannels,
     },
+    stickyMessages: a.stickyMessages,
   };
 }
 $("#au-save").addEventListener("click", busy($("#au-save"), async () => {

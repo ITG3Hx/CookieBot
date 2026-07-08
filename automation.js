@@ -57,6 +57,9 @@ const DEFAULT = {
   messageLogger: {
     enabled: false,
     channelId: null,
+    ignoreChannels: [],   // channels whose messages are never logged (e.g. #rules)
+    logDeletes: true,     // log messages that get deleted
+    logEdits: true,       // log messages that get edited
   },
   autoModeration: {
     enabled: false,
@@ -64,8 +67,15 @@ const DEFAULT = {
     capsMinLength: 10,
     mentionLimit: 5,
     repeatLimit: 3,
-    ignoreRoles: [],
+    blockInvites: false,  // delete Discord invite links
+    blockLinks: false,    // delete all links
+    bannedWords: [],      // words that get the message deleted
+    timeoutSeconds: 60,   // how long the timeout lasts
+    deleteOnly: false,    // just delete, don't timeout
+    ignoreRoles: [],      // roles exempt from auto-mod (staff)
+    ignoreChannels: [],   // channels auto-mod never touches (e.g. #rules, #memes)
   },
+  stickyMessages: [],  // { id, channelId, message, useEmbed, embedColor, enabled }
 };
 
 let client = null;
@@ -87,6 +97,7 @@ function load() {
         autoResponders: Array.isArray(saved.autoResponders) ? saved.autoResponders : [],
         messageLogger: { ...DEFAULT.messageLogger,   ...(saved.messageLogger || {}) },
         autoModeration: { ...DEFAULT.autoModeration, ...(saved.autoModeration || {}) },
+        stickyMessages: Array.isArray(saved.stickyMessages) ? saved.stickyMessages : [],
       };
     }
   } catch (e) { console.error("[automation] load:", e.message); state = clone(DEFAULT); }
@@ -259,44 +270,134 @@ async function handleAutomationInteraction(interaction) {
 }
 
 // ── Message logger ───────────────────────────────────────────────────────────
-async function onMessageLog(msg) {
+// A message logger is only useful if it ignores noisy / protected channels, so
+// every logger path bails early when the channel is on the ignore list.
+function loggerSkips(channelId) {
   const l = state.messageLogger;
-  if (!l.enabled || !msg.guild || !msg.author || msg.author.bot) return;
-  const ch = await fetchTextChannel(msg.guild, l.channelId);
+  if (!l.enabled || !isSnow(l.channelId)) return true;
+  if (channelId && l.ignoreChannels.includes(channelId)) return true;   // e.g. #rules
+  if (channelId && channelId === l.channelId) return true;              // never log the log channel itself
+  return false;
+}
+
+async function onMessageLog(msg) {
+  if (!msg.guild || !msg.author || msg.author.bot) return;
+  if (loggerSkips(msg.channelId)) return;
+  const ch = await fetchTextChannel(msg.guild, state.messageLogger.channelId);
   if (!ch) return;
   const content = msg.content.slice(0, 1024) || "(no text)";
   const embed = new EmbedBuilder()
     .setColor(0x7f8993)
     .setAuthor({ name: msg.author.tag, iconURL: msg.author.displayAvatarURL() })
     .setDescription(content)
-    .setFooter({ text: `#${msg.channel.name}` })
+    .setFooter({ text: `sent in #${msg.channel.name}` })
     .setTimestamp(msg.createdTimestamp);
   if (msg.attachments.size > 0) embed.addFields({ name: "Attachments", value: msg.attachments.map(a => `[${a.name}](${a.url})`).join("\n").slice(0, 1024) });
   ch.send({ embeds: [embed] }).catch(() => {});
 }
 
+async function onMessageDeleteLog(msg) {
+  if (!state.messageLogger.logDeletes) return;
+  if (!msg.guild || msg.author?.bot) return;
+  if (loggerSkips(msg.channelId)) return;
+  const ch = await fetchTextChannel(msg.guild, state.messageLogger.channelId);
+  if (!ch) return;
+  const embed = new EmbedBuilder()
+    .setColor(0xff5d67)
+    .setAuthor({ name: msg.author ? msg.author.tag : "Unknown", iconURL: msg.author?.displayAvatarURL() })
+    .setTitle("Message deleted")
+    .setDescription((msg.content || "(no text / not cached)").slice(0, 1024))
+    .setFooter({ text: `deleted from #${msg.channel?.name || "?"}` })
+    .setTimestamp();
+  ch.send({ embeds: [embed] }).catch(() => {});
+}
+
+async function onMessageEditLog(oldMsg, newMsg) {
+  if (!state.messageLogger.logEdits) return;
+  if (!newMsg.guild || newMsg.author?.bot) return;
+  if (loggerSkips(newMsg.channelId)) return;
+  if (oldMsg.content === newMsg.content) return;   // embed load, not a real edit
+  const ch = await fetchTextChannel(newMsg.guild, state.messageLogger.channelId);
+  if (!ch) return;
+  const embed = new EmbedBuilder()
+    .setColor(0xffcc4d)
+    .setAuthor({ name: newMsg.author ? newMsg.author.tag : "Unknown", iconURL: newMsg.author?.displayAvatarURL() })
+    .setTitle("Message edited")
+    .addFields(
+      { name: "Before", value: (oldMsg.content || "(not cached)").slice(0, 1024) },
+      { name: "After", value: (newMsg.content || "(empty)").slice(0, 1024) },
+    )
+    .setFooter({ text: `edited in #${newMsg.channel?.name || "?"}` })
+    .setTimestamp();
+  ch.send({ embeds: [embed] }).catch(() => {});
+}
+
 // ── Auto-moderation ───────────────────────────────────────────────────────────
+const INVITE_RE = /(discord\.(gg|com\/invite)|discordapp\.com\/invite)\/\S+/i;
+const LINK_RE   = /https?:\/\/\S+/i;
+const recentByUser = new Map();   // userId -> { content, count, ts } for repeat detection
+
+async function punish(msg, reason) {
+  const m = state.autoModeration;
+  await msg.delete().catch(() => {});
+  if (!m.deleteOnly) {
+    const ms = Math.max(1, Math.min(2419200, m.timeoutSeconds)) * 1000;   // cap at 28d (Discord max)
+    msg.member.timeout(ms, reason).catch(() => {});
+  }
+  pushActivity("automation", `Auto-mod: ${m.deleteOnly ? "deleted a message from" : "timed out"} ${msg.author.tag} (${reason})`);
+}
+
 async function onAutoModerate(msg) {
   const m = state.autoModeration;
   if (!m.enabled || !msg.guild || !msg.member || msg.author?.bot || !msg.content) return;
-  if (m.ignoreRoles.some(rid => msg.member.roles.cache.has(rid))) return;
+  if (m.ignoreChannels.includes(msg.channelId)) return;                       // e.g. #rules, #memes
+  if (m.ignoreRoles.some(rid => msg.member.roles.cache.has(rid))) return;     // staff exempt
+
+  const lc = msg.content.toLowerCase();
+
+  // banned words (whole-word match so "class" doesn't trip on "ass")
+  for (const w of m.bannedWords) {
+    if (new RegExp(`\\b${escapeRe(w.toLowerCase())}\\b`).test(lc)) { await punish(msg, "Banned word"); return; }
+  }
+
+  if (m.blockInvites && INVITE_RE.test(msg.content)) { await punish(msg, "Server invite"); return; }
+  if (m.blockLinks && LINK_RE.test(msg.content))     { await punish(msg, "Link posting"); return; }
 
   const caps = (msg.content.match(/[A-Z]/g) || []).length;
   const lower = (msg.content.match(/[a-z]/g) || []).length;
   if (caps >= m.capsMinLength && lower > 0 && (caps / (caps + lower)) * 100 > m.capsSensitivity) {
-    await msg.delete().catch(() => {});
-    msg.member.timeout(60000, "Caps spam").catch(() => {});
-    pushActivity("automation", `Auto-mod: timed out ${msg.author.tag} for caps spam`);
-    return;
+    await punish(msg, "Caps spam"); return;
   }
 
-  const mentions = msg.mentions.size + (msg.mentions.has(msg.guild.roles.everyone) ? 1 : 0);
-  if (mentions > m.mentionLimit) {
-    await msg.delete().catch(() => {});
-    msg.member.timeout(60000, "Mention spam").catch(() => {});
-    pushActivity("automation", `Auto-mod: timed out ${msg.author.tag} for mention spam (${mentions} mentions)`);
-    return;
+  const mentions = msg.mentions.users.size + msg.mentions.roles.size + (msg.mentions.everyone ? 1 : 0);
+  if (mentions > m.mentionLimit) { await punish(msg, `Mention spam (${mentions})`); return; }
+
+  // repeated identical messages
+  const prev = recentByUser.get(msg.author.id);
+  if (prev && prev.content === lc && Date.now() - prev.ts < 15000) {
+    prev.count++; prev.ts = Date.now();
+    if (prev.count >= m.repeatLimit) { recentByUser.delete(msg.author.id); await punish(msg, "Repeated messages"); return; }
+  } else {
+    recentByUser.set(msg.author.id, { content: lc, count: 1, ts: Date.now() });
   }
+}
+
+// ── Sticky messages ────────────────────────────────────────────────────────────
+// Keep an info message glued to the bottom of a channel by reposting it after
+// other people talk. Perfect for a rules reminder or the server IP.
+const stickyLast = new Map();   // channelId -> last sticky message id
+async function onStickyMessage(msg) {
+  if (!msg.guild || msg.author?.bot) return;
+  const s = state.stickyMessages.find(x => x.enabled && x.channelId === msg.channelId);
+  if (!s || !s.message.trim()) return;
+  const ch = msg.channel;
+  const prevId = stickyLast.get(s.channelId);
+  if (prevId) { ch.messages.delete(prevId).catch(() => {}); }
+  const payload = s.useEmbed
+    ? { embeds: [new EmbedBuilder().setColor(colorInt(s.embedColor, 0xff8c00)).setDescription(s.message)] }
+    : { content: s.message };
+  const sent = await ch.send(payload).catch(() => null);
+  if (sent) stickyLast.set(s.channelId, sent.id);
 }
 
 // ── Web dashboard API ─────────────────────────────────────────────────────────
@@ -377,18 +478,46 @@ function vMessageLogger(o) {
   return {
     enabled: !!o.enabled,
     channelId: isSnow(o.channelId) ? o.channelId : null,
+    ignoreChannels: snowList(o.ignoreChannels, 50),
+    logDeletes: o.logDeletes !== false,
+    logEdits: o.logEdits !== false,
   };
 }
 function vAutoModeration(o) {
   if (typeof o !== "object" || !o) return null;
+  const words = Array.isArray(o.bannedWords)
+    ? [...new Set(o.bannedWords.map(w => clampStr(w, 40).toLowerCase().trim()).filter(Boolean))].slice(0, 100)
+    : [];
   return {
     enabled: !!o.enabled,
     capsSensitivity: Math.max(0, Math.min(100, parseInt(o.capsSensitivity, 10) || 70)),
     capsMinLength: Math.max(5, Math.min(1000, parseInt(o.capsMinLength, 10) || 10)),
     mentionLimit: Math.max(1, Math.min(50, parseInt(o.mentionLimit, 10) || 5)),
     repeatLimit: Math.max(1, Math.min(20, parseInt(o.repeatLimit, 10) || 3)),
-    ignoreRoles: snowList(o.ignoreRoles, 10),
+    blockInvites: !!o.blockInvites,
+    blockLinks: !!o.blockLinks,
+    bannedWords: words,
+    timeoutSeconds: Math.max(10, Math.min(2419200, parseInt(o.timeoutSeconds, 10) || 60)),
+    deleteOnly: !!o.deleteOnly,
+    ignoreRoles: snowList(o.ignoreRoles, 20),
+    ignoreChannels: snowList(o.ignoreChannels, 50),
   };
+}
+function vStickyMessages(arr) {
+  if (!Array.isArray(arr)) return null;
+  const seen = new Set();
+  return arr
+    .filter(s => s && isSnow(s.channelId) && String(s.message || "").trim())
+    .filter(s => { if (seen.has(s.channelId)) return false; seen.add(s.channelId); return true; })  // one sticky per channel
+    .slice(0, 25)
+    .map((s, i) => ({
+      id: (typeof s.id === "string" && s.id) ? s.id.slice(0, 40) : `s${i}_${s.channelId.slice(-5)}`,
+      channelId: s.channelId,
+      message: clampStr(s.message, 1500).trim(),
+      useEmbed: !!s.useEmbed,
+      embedColor: normHex(s.embedColor) || "#ff8c00",
+      enabled: s.enabled !== false,
+    }));
 }
 
 function publicState() { return clone(state); }
@@ -411,6 +540,12 @@ function webUpdateAutomation(patch) {
     if (!v) return { error: "Invalid auto-responders" };
     state.autoResponders = v;
     applied.push("autoResponders");
+  }
+  if ("stickyMessages" in patch) {
+    const v = vStickyMessages(patch.stickyMessages);
+    if (!v) return { error: "Invalid sticky messages" };
+    state.stickyMessages = v;
+    applied.push("stickyMessages");
   }
   if (!applied.length) return { error: "Nothing valid to update" };
   save();
@@ -479,11 +614,19 @@ function initAutomation(discordClient) {
     onMessage(msg);
     onMessageLog(msg).catch(e => console.error("[automation] logger:", e.message));
     onAutoModerate(msg).catch(e => console.error("[automation] moderation:", e.message));
+    onStickyMessage(msg).catch(e => console.error("[automation] sticky:", e.message));
+  });
+  client.on("messageDelete", (msg) => {
+    onMessageDeleteLog(msg).catch(e => console.error("[automation] delete-log:", e.message));
+  });
+  client.on("messageUpdate", (oldMsg, newMsg) => {
+    onMessageEditLog(oldMsg, newMsg).catch(e => console.error("[automation] edit-log:", e.message));
   });
 
   const rr = state.reactionRoles.roles.length;
   const ar = state.autoResponders.filter(r => r.enabled).length;
-  console.log(`[automation] Ready — autorole ${state.autorole.enabled ? "on" : "off"}, welcome ${state.welcome.enabled ? "on" : "off"}, logger ${state.messageLogger.enabled ? "on" : "off"}, moderation ${state.autoModeration.enabled ? "on" : "off"}, ${rr} reaction role(s), ${ar} responder(s).`);
+  const st = state.stickyMessages.filter(s => s.enabled).length;
+  console.log(`[automation] Ready — autorole ${state.autorole.enabled ? "on" : "off"}, welcome ${state.welcome.enabled ? "on" : "off"}, logger ${state.messageLogger.enabled ? "on" : "off"}, moderation ${state.autoModeration.enabled ? "on" : "off"}, ${rr} reaction role(s), ${ar} responder(s), ${st} sticky.`);
 }
 
 module.exports = {

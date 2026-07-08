@@ -121,7 +121,7 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .09em; color: v
 #views { padding: 22px 26px 60px; display: flex; flex-direction: column; }
 .view { display: flex; flex-direction: column; gap: 14px; }
 .view-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.view-head h2 { margin: 0; }
+.view-head h2 { margin: 0; font-size: 21px; text-transform: none; letter-spacing: -.015em; color: var(--text); font-weight: 650; }
 
 /* ── Cards, stats, grids ───────────────────────────────────────────────── */
 .card {
@@ -131,10 +131,15 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .09em; color: v
     var(--card);
   border: 1px solid var(--edge);
   border-radius: 12px;
-  padding: 18px;
-  transition: border-color .15s ease;
+  padding: 20px;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
 .card:hover { border-color: var(--edge-2); }
+/* a card whose enable toggle is on gets a cookie-orange edge so active features read at a glance */
+.card:has(.card-head .switch input:checked) {
+  border-color: rgba(255, 140, 0, .3);
+  box-shadow: inset 3px 0 0 var(--cookie);
+}
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
 .card-head h2 { margin: 0; }
 .section-desc { color: var(--muted); font-size: 13px; margin: 0; max-width: 60ch; }
@@ -264,7 +269,8 @@ td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
 .tag { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--card-2); }
 .tag.warn { color: var(--warn); } .tag.bad { color: var(--bad); } .tag.ok { color: var(--ok); } .tag.info { color: var(--sheen); }
 
-.chip-box { margin-bottom: 14px; }
+.chip-box { margin-bottom: 14px; background: rgba(139, 108, 255, .03); border: 1px solid var(--edge); border-radius: 10px; padding: 12px; }
+.chip-box .field-label { margin-bottom: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 8px; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -311,7 +317,10 @@ td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
 .msg .embed-note { color: var(--muted); font-style: italic; font-size: 12.5px; }
 
 /* ── Tickets: tabs, topics, colour field, sub-headings ─────────────────── */
-h3.sub { font-size: 13px; color: var(--text); text-transform: none; letter-spacing: 0; margin: 18px 0 4px; font-weight: 600; }
+h3.sub {
+  font-size: 11px; color: var(--sheen); text-transform: uppercase; letter-spacing: .12em;
+  margin: 20px 0 12px; font-weight: 600; padding-top: 16px; border-top: 1px solid var(--edge);
+}
 .color-field { display: flex; gap: 8px; align-items: center; }
 .color-field input[type="color"] { width: 40px; height: 36px; flex: none; padding: 2px; background: var(--bg); border: 1px solid var(--edge); border-radius: 7px; cursor: pointer; }
 .topic-row { display: grid; grid-template-columns: 64px 1.2fr 1.6fr auto; gap: 8px; margin-bottom: 8px; }
@@ -394,6 +403,15 @@ h3.sub { font-size: 13px; color: var(--text); text-transform: none; letter-spaci
 
 /* auto-responder rows */
 .resp-row { display: grid; grid-template-columns: auto 1.1fr 120px 2fr auto auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+
+/* sticky-message editor rows */
+.sticky-row {
+  background: var(--card-2); border: 1px solid var(--edge); border-radius: 10px;
+  padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;
+}
+.row.between { justify-content: space-between; align-items: center; gap: 10px; }
+.sticky-ch { font-family: var(--mono); font-size: 13px; color: var(--cookie-2); flex: 1; }
+.mini-color { width: 40px; height: 30px; padding: 2px; flex: none; }
 
 /* channel mention dropdown */
 .dropdown {

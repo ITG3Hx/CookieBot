@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CookieBot Control</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0812'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23ff8c00'/%3E%3Ccircle cx='13' cy='13' r='1.6' fill='%230a0812'/%3E%3Ccircle cx='19' cy='15' r='1.6' fill='%230a0812'/%3E%3Ccircle cx='15' cy='19' r='1.6' fill='%230a0812'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/dashboard/style.css">
+</head>
+<body>
+
+<!-- ── Login ─────────────────────────────────────────────────────────────── -->
+<div id="login" class="login hidden">
+  <form id="login-form" class="login-slab">
+    <div class="seam"></div>
+    <div class="login-brand">
+      <span class="eyebrow">CookieSMP</span>
+      <h1>CookieBot Control</h1>
+      <p class="muted">The whole bot, one page. Enter the dashboard password.</p>
+    </div>
+    <input id="login-pass" class="input" type="password" placeholder="Dashboard password" autocomplete="current-password" required
+           style="margin-bottom:12px">
+    <button type="submit" class="btn primary wide">Unlock</button>
+    <p id="login-error" class="form-error hidden"></p>
+  </form>
+</div>
+
+<!-- ── App ───────────────────────────────────────────────────────────────── -->
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <div>
+        <strong>CookieBot</strong>
+        <span class="eyebrow">control</span>
+      </div>
+    </div>
+    <nav id="nav">
+      <button class="nav-item active" data-view="overview">Overview</button>
+      <button class="nav-item" data-view="tickets">Tickets</button>
+      <button class="nav-item" data-view="moderation">Moderation</button>
+      <button class="nav-item" data-view="security">Security</button>
+      <button class="nav-item" data-view="giveaways">Giveaways</button>
+      <button class="nav-item" data-view="testers">Testers</button>
+      <button class="nav-item" data-view="messages">Messages</button>
+      <button class="nav-item" data-view="bot">Bot</button>
+    </nav>
+    <button id="logout" class="btn ghost wide">Log out</button>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div id="guild-label" class="guild-label muted">connecting...</div>
+      <div class="top-right">
+        <span id="bot-pill" class="pill off">offline</span>
+      </div>
+    </header>
+    <div class="seam"></div>
+
+    <main id="views">
+
+      <!-- Overview -->
+      <section id="view-overview" class="view">
+        <div class="stat-row" id="ov-stats"></div>
+        <div class="grid-2">
+          <div class="card">
+            <h2>Security posture</h2>
+            <div id="ov-security" class="kv"></div>
+          </div>
+          <div class="card">
+            <h2>Live activity</h2>
+            <div id="ov-activity" class="feed"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tickets -->
+      <section id="view-tickets" class="view hidden">
+        <div class="view-head">
+          <h2>Tickets</h2>
+          <div class="row">
+            <button class="btn ghost" data-tk-tab="manage">Manage</button>
+            <button class="btn" data-tk-tab="setup">Set up</button>
+          </div>
+        </div>
+
+        <!-- ── Manage tab ────────────────────────────────────────────── -->
+        <div id="tk-manage">
+          <div class="card">
+            <h2>Open tickets <span id="tk-open-count" class="count"></span></h2>
+            <p class="muted small">Click a ticket to read it, reply as the bot, claim or close it.</p>
+            <div id="tk-open" class="table-wrap"></div>
+          </div>
+          <div class="card">
+            <h2>Closed <span class="count">last 100</span></h2>
+            <div id="tk-closed" class="table-wrap"></div>
+          </div>
+        </div>
+
+        <!-- ── Set up tab ────────────────────────────────────────────── -->
+        <div id="tk-setup" class="hidden">
+          <div class="grid-2">
+            <div class="card">
+              <h2>Support panel</h2>
+              <p class="muted small">The message members click to open a ticket. The preview on the right updates live.</p>
+              <div class="form-grid">
+                <label class="span2">Panel title <input id="tks-title" class="input" maxlength="256"></label>
+                <label class="span2">Panel text <textarea id="tks-text" class="input" rows="3" maxlength="2000"></textarea></label>
+                <label>Accent color <span class="color-field"><input id="tks-color" type="color"><input id="tks-color-hex" class="input" maxlength="7"></span></label>
+                <label>Button label <input id="tks-button" class="input" maxlength="80"></label>
+                <label>Button emoji <input id="tks-emoji" class="input" maxlength="64" placeholder="optional, e.g. 🍪"></label>
+                <label>Button color
+                  <select id="tks-btnstyle" class="input">
+                    <option value="primary">Blurple</option>
+                    <option value="secondary">Grey</option>
+                    <option value="success">Green</option>
+                    <option value="danger">Red</option>
+                  </select>
+                </label>
+              </div>
+
+              <h3 class="sub">Topics <span class="muted small">(optional categories)</span></h3>
+              <p class="muted small">Add topics and the button turns into a dropdown. Leave empty for a single button.</p>
+              <div id="tk-topics"></div>
+              <button id="tk-topic-add" class="btn ghost mini">+ Add topic</button>
+            </div>
+
+            <div class="card preview-card">
+              <span class="preview-label">Live preview — how it looks in Discord</span>
+              <div id="tk-panel-preview" class="dc-wrap"></div>
+              <div class="row" style="margin-top:16px">
+                <select id="tk-panel-channel" class="input grow"></select>
+                <button id="tk-post-panel" class="btn primary">Post panel</button>
+              </div>
+              <p class="muted small" style="margin-top:6px">Posting saves your settings first, so the panel always matches the preview.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Ticket behavior</h2>
+            <div class="form-grid">
+              <label>Category for tickets <select id="tks-category" class="input"></select></label>
+              <label>Support role <select id="tks-role" class="input"></select></label>
+              <label>Log channel <select id="tks-log" class="input"></select></label>
+              <label>Max open per user <input id="tks-max" class="input" type="number" min="1" max="10"></label>
+              <label>Channel naming
+                <select id="tks-naming" class="input">
+                  <option value="number">By number (ticket-0001)</option>
+                  <option value="name">By username (ticket-cookie)</option>
+                </select>
+              </label>
+              <label>Channel prefix <input id="tks-prefix" class="input" maxlength="16"></label>
+              <label>Delete channel after close (seconds) <input id="tks-close-delay" class="input" type="number" min="0" max="60"></label>
+              <label>Auto-close after inactivity (hours, 0 = off) <input id="tks-autoclose" class="input" type="number" min="0" max="336"></label>
+              <label class="check"><input id="tks-ping" type="checkbox"> Ping the support role when a ticket opens</label>
+              <label class="check"><input id="tks-dmclose" type="checkbox"> DM the opener a transcript when their ticket closes</label>
+              <label class="span2">Welcome message (shown inside every new ticket) <textarea id="tks-welcome" class="input" rows="2" maxlength="1000"></textarea></label>
+            </div>
+          </div>
+
+          <div class="row end sticky-save">
+            <span id="tks-status" class="muted small"></span>
+            <button id="tks-save" class="btn primary">Save all ticket settings</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Moderation -->
+      <section id="view-moderation" class="view hidden">
+        <div class="view-head"><h2>Moderation</h2></div>
+        <div class="card">
+          <h2>Take action</h2>
+          <div class="form-grid">
+            <label class="span2 rel">Member
+              <input id="mod-user-q" class="input" placeholder="Search name, or paste a user ID" autocomplete="off">
+              <div id="mod-user-results" class="dropdown hidden"></div>
+              <input type="hidden" id="mod-user-id">
+            </label>
+            <label>Action
+              <select id="mod-action" class="input">
+                <option value="warn">Warn</option>
+                <option value="timeout">Timeout</option>
+                <option value="untimeout">Remove timeout</option>
+                <option value="kick">Kick</option>
+                <option value="ban">Ban</option>
+                <option value="unban">Unban (by ID)</option>
+              </select>
+            </label>
+            <label id="mod-duration-wrap">Duration <input id="mod-duration" class="input" placeholder="e.g. 10m, 1h, 2d"></label>
+            <label id="mod-days-wrap" class="hidden">Delete messages (days) <input id="mod-days" class="input" type="number" min="0" max="7" value="0"></label>
+            <label class="span2">Reason <input id="mod-reason" class="input" maxlength="500" placeholder="Why (sent to the user + modlog)"></label>
+          </div>
+          <div class="row end"><button id="mod-go" class="btn danger">Run action</button></div>
+        </div>
+        <div class="card">
+          <h2>Infractions <span id="mod-count" class="count"></span></h2>
+          <div id="mod-list" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- Security -->
+      <section id="view-security" class="view hidden">
+        <div class="view-head">
+          <h2>Security</h2>
+          <div class="row">
+            <button id="sec-resnapshot" class="btn ghost">Refresh snapshot</button>
+            <button id="sec-lockdown" class="btn danger">Lock down server</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h2>Anti-nuke</h2>
+            <div class="form-grid">
+              <label class="check"><input id="sec-enabled" type="checkbox"> Anti-nuke enabled</label>
+              <label class="check"><input id="sec-banlock" type="checkbox"> Ban lock (only /ban works)</label>
+              <label>Punishment
+                <select id="sec-punishment" class="input">
+                  <option value="log">Log only</option>
+                  <option value="strip">Strip dangerous roles</option>
+                  <option value="quarantine">Quarantine (remove all roles)</option>
+                  <option value="kick">Kick</option>
+                  <option value="ban">Ban</option>
+                </select>
+              </label>
+              <label>Raid trigger (actions) <input id="sec-threshold" class="input" type="number" min="2" max="20"></label>
+              <label>Window (seconds) <input id="sec-window" class="input" type="number" min="3" max="120"></label>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Join-raid guard</h2>
+            <div class="form-grid">
+              <label class="check"><input id="sec-jr-enabled" type="checkbox"> Enabled</label>
+              <label class="check"><input id="sec-jr-verify" type="checkbox"> Raise verification on surge</label>
+              <label>Joins to trigger <input id="sec-jr-threshold" class="input" type="number" min="2" max="50"></label>
+              <label>Window (seconds) <input id="sec-jr-window" class="input" type="number" min="5" max="120"></label>
+              <label>Kick accounts younger than (days) <input id="sec-jr-age" class="input" type="number" min="0" max="30"></label>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Whitelist</h2>
+            <p class="muted small">Whitelisted people never trigger the anti-nuke.</p>
+            <div class="chip-box"><div class="chips" id="sec-wl-users"></div>
+              <div class="row rel">
+                <input id="sec-wl-user-q" class="input grow" placeholder="Search member to whitelist" autocomplete="off">
+                <div id="sec-wl-user-results" class="dropdown hidden"></div>
+              </div>
+            </div>
+            <div class="chip-box"><div class="chips" id="sec-wl-roles"></div>
+              <div class="row"><select id="sec-wl-role-pick" class="input grow"></select><button id="sec-wl-role-add" class="btn">Add role</button></div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Protected channels &amp; roles</h2>
+            <p class="muted small">Deleting these triggers an instant raid response.</p>
+            <div class="chip-box"><div class="chips" id="sec-prot-channels"></div>
+              <div class="row"><select id="sec-prot-ch-pick" class="input grow"></select><button id="sec-prot-ch-add" class="btn">Protect channel</button></div>
+            </div>
+            <div class="chip-box"><div class="chips" id="sec-prot-roles"></div>
+              <div class="row"><select id="sec-prot-role-pick" class="input grow"></select><button id="sec-prot-role-add" class="btn">Protect role</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="row end sticky-save">
+          <span id="sec-snapshot" class="muted small"></span>
+          <button id="sec-save" class="btn primary">Save security config</button>
+        </div>
+      </section>
+
+      <!-- Giveaways -->
+      <section id="view-giveaways" class="view hidden">
+        <div class="view-head"><h2>Giveaways</h2></div>
+        <div class="card">
+          <h2>Start a giveaway</h2>
+          <div class="form-grid">
+            <label class="span2">Prize <input id="gw-prize" class="input" maxlength="240" placeholder="What are you giving away?"></label>
+            <label>Channel <select id="gw-channel" class="input"></select></label>
+            <label>Duration <input id="gw-duration" class="input" placeholder="30m, 2h, 1d"></label>
+            <label>Winners <input id="gw-winners" class="input" type="number" min="1" max="20" value="1"></label>
+            <label>Required role (optional) <select id="gw-role" class="input"></select></label>
+          </div>
+          <div class="row end"><button id="gw-start" class="btn primary">Start giveaway</button></div>
+        </div>
+        <div class="card"><h2>Active</h2><div id="gw-active" class="table-wrap"></div></div>
+        <div class="card"><h2>Ended</h2><div id="gw-ended" class="table-wrap"></div></div>
+      </section>
+
+      <!-- Testers -->
+      <section id="view-testers" class="view hidden">
+        <div class="view-head"><h2>Linked testers</h2></div>
+        <div class="card"><div id="testers-list" class="table-wrap"></div></div>
+      </section>
+
+      <!-- Messages -->
+      <section id="view-messages" class="view hidden">
+        <div class="view-head"><h2>Send as the bot</h2></div>
+        <div class="card">
+          <div class="form-grid">
+            <label>Channel <select id="msg-channel" class="input"></select></label>
+            <label class="span2">Message <textarea id="msg-content" class="input" rows="3" maxlength="1900" placeholder="Plain message text (optional if you fill the embed)"></textarea></label>
+            <label>Embed title <input id="msg-embed-title" class="input" maxlength="256"></label>
+            <label>Embed color <input id="msg-embed-color" class="input" value="#ff8c00" maxlength="7"></label>
+            <label class="span2">Embed text <textarea id="msg-embed-text" class="input" rows="3" maxlength="4000"></textarea></label>
+          </div>
+          <div class="row end"><button id="msg-send" class="btn primary">Send message</button></div>
+        </div>
+      </section>
+
+      <!-- Bot -->
+      <section id="view-bot" class="view hidden">
+        <div class="view-head"><h2>Bot</h2></div>
+        <div class="grid-2">
+          <div class="card">
+            <h2>Presence</h2>
+            <div class="form-grid">
+              <label>Status
+                <select id="bot-status" class="input">
+                  <option value="online">Online</option>
+                  <option value="idle">Idle</option>
+                  <option value="dnd">Do not disturb</option>
+                  <option value="invisible">Invisible</option>
+                </select>
+              </label>
+              <label>Activity type
+                <select id="bot-acttype" class="input">
+                  <option value="playing">Playing</option>
+                  <option value="watching">Watching</option>
+                  <option value="listening">Listening to</option>
+                  <option value="competing">Competing in</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label class="span2">Activity text <input id="bot-acttext" class="input" maxlength="128" placeholder="e.g. CookieSMP"></label>
+            </div>
+            <div class="row end"><button id="bot-presence-save" class="btn primary">Apply presence</button></div>
+          </div>
+          <div class="card">
+            <h2>Process</h2>
+            <div id="bot-process" class="kv"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- Ticket detail modal -->
+<div id="modal" class="modal hidden">
+  <div class="modal-slab">
+    <div class="modal-head">
+      <h2 id="modal-title">Ticket</h2>
+      <button id="modal-close" class="btn ghost">Close</button>
+    </div>
+    <div id="modal-body" class="modal-body"></div>
+    <div id="modal-foot" class="modal-foot"></div>
+  </div>
+</div>
+
+<div id="toasts" class="toasts"></div>
+
+<script src="/dashboard/app.js"></script>
+</body>
+</html>

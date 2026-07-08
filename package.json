@@ -1,0 +1,26 @@
+{
+  "name": "cookie-applications-bot",
+  "version": "2.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "optionalDependencies": {
+    "@discordjs/opus": "^0.9.0"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.17.0",
+    "cors": "^2.8.5",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "opusscript": "^0.0.8",
+    "play-dl": "^1.9.7",
+    "tweetnacl": "^1.0.3"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

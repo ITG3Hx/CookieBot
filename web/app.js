@@ -677,6 +677,12 @@ async function loadAutomation() {
   $("#au-mod-capslen").value = a.autoModeration.capsMinLength;
   $("#au-mod-mentions").value = a.autoModeration.mentionLimit;
   renderModIgnoreRoles();
+
+  // channel mention autocomplete on message fields
+  setupChannelMention($("#au-wel-msg"));
+  setupChannelMention($("#au-wel-dmmsg"));
+  setupChannelMention($("#au-bye-msg"));
+  setupChannelMention($("#au-rr-text"));
 }
 
 // ── autorole chips ──
@@ -746,6 +752,8 @@ function renderResponders() {
       <label class="check mini" title="delete the triggering message"><input type="checkbox" data-resp-i="${i}" data-resp-f="deleteTrigger" ${r.deleteTrigger ? "checked" : ""}> del</label>
       <button class="btn ghost mini" data-resp-rm="${i}" title="remove">✕</button>
     </div>`).join("") : `<p class="muted small">No auto-replies yet.</p>`;
+  // add channel mention to response inputs
+  $$("[data-resp-f='response']").forEach(el => setupChannelMention(el));
 }
 function respRowEdit(el) {
   const r = state.automation.autoResponders[+el.dataset.respI];
@@ -844,6 +852,42 @@ $("#au-mod-ignore-roles").addEventListener("click", (ev) => {
   renderModIgnoreRoles();
   scheduleAutoSave();
 });
+
+// ── channel autocomplete ──
+function setupChannelMention(inputEl) {
+  let dropdown = null;
+  inputEl.addEventListener("input", (ev) => {
+    const text = ev.target.value;
+    const lastHash = text.lastIndexOf("#");
+    if (lastHash === -1 || lastHash === text.length - 1) { if (dropdown) dropdown.remove(); return; }
+
+    const query = text.slice(lastHash + 1).toLowerCase();
+    const matches = state.channels.filter(ch => ch.name.toLowerCase().includes(query)).slice(0, 8);
+    if (!matches.length) { if (dropdown) dropdown.remove(); return; }
+
+    if (!dropdown) {
+      dropdown = document.createElement("div");
+      dropdown.className = "dropdown visible";
+      inputEl.parentElement.appendChild(dropdown);
+    }
+    dropdown.innerHTML = matches.map(ch => `<div class="dropdown-item" data-ch-id="${ch.id}" data-ch-hash-pos="${lastHash}">#${ch.name}</div>`).join("");
+
+    matches.forEach(ch => {
+      dropdown.querySelector(`[data-ch-id="${ch.id}"]`).addEventListener("click", () => {
+        const pos = +dropdown.querySelector(`[data-ch-id="${ch.id}"]`).dataset.chHashPos;
+        const before = inputEl.value.slice(0, pos);
+        const after = inputEl.value.slice(inputEl.value.length);
+        inputEl.value = before + "#" + ch.name + after;
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+        dropdown.remove();
+        dropdown = null;
+        scheduleAutoSave();
+      });
+    });
+  });
+  inputEl.addEventListener("blur", () => { if (dropdown) setTimeout(() => dropdown?.remove(), 200); });
+}
 
 // ── auto-save ──
 let autoSaveTimer = null;

@@ -395,6 +395,20 @@ h3.sub { font-size: 13px; color: var(--text); text-transform: none; letter-spaci
 /* auto-responder rows */
 .resp-row { display: grid; grid-template-columns: auto 1.1fr 120px 2fr auto auto; gap: 8px; align-items: center; margin-bottom: 8px; }
 
+/* channel mention dropdown */
+.dropdown {
+  position: absolute; top: 100%; left: 0; right: 0; max-height: 0; overflow: hidden;
+  background: var(--card-2); border: 1px solid var(--edge-2); border-radius: 6px;
+  margin-top: 4px; z-index: 50; transition: max-height .15s;
+}
+.dropdown.visible { max-height: 240px; overflow-y: auto; }
+.dropdown-item {
+  padding: 8px 12px; cursor: pointer; color: var(--text); font-size: 13px;
+  border-bottom: 1px solid var(--edge); transition: background .1s;
+}
+.dropdown-item:last-child { border-bottom: none; }
+.dropdown-item:hover { background: var(--edge); }
+
 /* ── Toasts ────────────────────────────────────────────────────────────── */
 .toasts { position: fixed; bottom: 18px; right: 18px; z-index: 90; display: flex; flex-direction: column; gap: 8px; }
 .toast {

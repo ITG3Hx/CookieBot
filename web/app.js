@@ -111,6 +111,7 @@ const loaders = {
   overview: loadOverview,
   tickets: loadTickets,
   automation: loadAutomation,
+  applications: loadApplications,
   moderation: loadModeration,
   security: loadSecurity,
   giveaways: loadGiveaways,
@@ -410,7 +411,7 @@ function renderTopics() {
       <input class="input" data-topic-i="${i}" data-topic-f="label" value="${esc(t.label || "")}" placeholder="Topic name" maxlength="100">
       <input class="input" data-topic-i="${i}" data-topic-f="description" value="${esc(t.description || "")}" placeholder="Short description (optional)" maxlength="100">
       <button class="btn ghost mini" data-topic-rm="${i}" title="remove">✕</button>
-    </div>`).join("") : `<p class="muted small">No topics yet — the panel shows a single button.</p>`;
+    </div>`).join("") : `<p class="muted small">No topics yet, the panel shows a single button.</p>`;
 }
 
 // live-preview bindings for the appearance fields
@@ -530,7 +531,7 @@ async function openTicketModal(channelId) {
   };
   render(d.messages);
 
-  if (t.status !== "open") { $("#modal-foot").innerHTML = `<span class="muted small">This ticket is closed — read-only transcript.</span>`; return; }
+  if (t.status !== "open") { $("#modal-foot").innerHTML = `<span class="muted small">This ticket is closed, read-only transcript.</span>`; return; }
 
   $("#modal-foot").innerHTML = `
     <div class="reply-area">
@@ -1116,6 +1117,108 @@ $("#mod-list").addEventListener("click", async (ev) => {
   try { await api(`/moderation/${btn.dataset.delInf}`, { method: "DELETE" }); toast("Infraction removed"); loadModeration(); }
   catch (e) { toast(e.message, true); }
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Applications (owner config for the /apply site)
+// ══════════════════════════════════════════════════════════════════════════════
+async function loadApplications() {
+  await loadGuildData().catch(() => {});
+  const [cfg, stats] = await Promise.all([api("/applications/config"), api("/applications/stats").catch(() => null)]);
+  const c = cfg.config;
+  state.appConfig = c;
+
+  $("#ap-open").checked = c.open;
+  $("#ap-servername").value = c.serverName || "";
+  $("#ap-minage").value = c.minAge;
+  $("#ap-cooldown").value = c.cooldownHours;
+  $("#ap-assignrole").checked = c.assignRoleOnAccept;
+  $("#ap-dm-accept").checked = c.dmOnAccept;
+  $("#ap-dm-deny").checked = c.dmOnDeny;
+  $("#ap-dm-interview").checked = c.dmOnInterview;
+  $("#ap-msg-accept").value = c.acceptDM || "";
+  $("#ap-msg-deny").value = c.denyDM || "";
+  $("#ap-msg-interview").value = c.interviewDM || "";
+
+  const st = $("#ap-revpw-state");
+  st.textContent = c.reviewerPasswordSet ? "password set" : "no password yet, set one so mods can log in";
+  st.className = "tag " + (c.reviewerPasswordSet ? "ok" : "warn");
+
+  renderAppPositions();
+  renderAppStats(stats);
+}
+
+function renderAppStats(stats) {
+  const el = $("#ap-stats");
+  if (!el) return;
+  const c = stats?.counts;
+  if (!c) { el.innerHTML = ""; return; }
+  const cell = (label, val, cls) => `<div class="stat"><div class="k">${label}</div><div class="v ${cls || ""}">${val}</div></div>`;
+  el.innerHTML =
+    cell("PENDING", c.pending, c.pending ? "bad" : "") +
+    cell("INTERVIEW", c.interview) +
+    cell("ACCEPTED", c.accepted, c.accepted ? "ok" : "") +
+    cell("DENIED", c.denied) +
+    cell("TOTAL", c.all);
+}
+
+function renderAppPositions() {
+  const positions = state.appConfig.positions;
+  $("#ap-positions").innerHTML = positions.map((p, i) => `
+    <div class="ap-pos ${p.enabled ? "" : "off"}">
+      <div class="ap-pos-head">
+        <label class="switch sm"><input type="checkbox" data-ap-i="${i}" data-ap-f="enabled" ${p.enabled ? "checked" : ""}><span class="track"></span></label>
+        <input class="input ap-pos-name" data-ap-i="${i}" data-ap-f="name" value="${esc(p.name)}" maxlength="40">
+        <select class="input" data-ap-i="${i}" data-ap-f="roleId" data-role-value="${esc(p.roleId || "")}"></select>
+      </div>
+      <input class="input" data-ap-i="${i}" data-ap-f="description" value="${esc(p.description || "")}" maxlength="200" placeholder="Short blurb shown on the apply page">
+    </div>`).join("");
+  // fill each role select
+  positions.forEach((p, i) => {
+    const sel = $(`#ap-positions [data-ap-i="${i}"][data-ap-f="roleId"]`);
+    if (sel) fillRoleSelect(sel, { none: "no role (assign manually)", value: p.roleId });
+  });
+}
+function apPosEdit(el) {
+  const p = state.appConfig.positions[+el.dataset.apI];
+  if (!p) return;
+  const f = el.dataset.apF;
+  p[f] = (el.type === "checkbox") ? el.checked : (f === "roleId" ? (el.value || null) : el.value);
+  if (f === "enabled") el.closest(".ap-pos").classList.toggle("off", !el.checked);
+}
+$("#ap-positions").addEventListener("input",  (ev) => { const el = ev.target.closest("[data-ap-i]"); if (el) apPosEdit(el); });
+$("#ap-positions").addEventListener("change", (ev) => { const el = ev.target.closest("[data-ap-i]"); if (el) apPosEdit(el); });
+
+function collectAppConfig() {
+  const c = state.appConfig;
+  return {
+    open: $("#ap-open").checked,
+    serverName: $("#ap-servername").value,
+    minAge: parseInt($("#ap-minage").value, 10) || 13,
+    cooldownHours: parseInt($("#ap-cooldown").value, 10) || 0,
+    assignRoleOnAccept: $("#ap-assignrole").checked,
+    dmOnAccept: $("#ap-dm-accept").checked,
+    dmOnDeny: $("#ap-dm-deny").checked,
+    dmOnInterview: $("#ap-dm-interview").checked,
+    acceptDM: $("#ap-msg-accept").value,
+    denyDM: $("#ap-msg-deny").value,
+    interviewDM: $("#ap-msg-interview").value,
+    positions: c.positions.map(p => ({ id: p.id, name: p.name, description: p.description, enabled: p.enabled, roleId: p.roleId })),
+  };
+}
+$("#ap-save").addEventListener("click", busy($("#ap-save"), async () => {
+  const r = await api("/applications/config", { method: "PUT", body: collectAppConfig() });
+  state.appConfig = r.config;
+  $("#ap-status").textContent = "Saved " + new Date().toLocaleTimeString();
+  toast("Applications settings saved");
+}));
+$("#ap-revpw-save").addEventListener("click", busy($("#ap-revpw-save"), async () => {
+  const pw = $("#ap-revpw").value;
+  if (pw.length < 4) { toast("Reviewer password must be at least 4 characters", true); return; }
+  await api("/applications/reviewer-password", { method: "POST", body: { password: pw } });
+  $("#ap-revpw").value = "";
+  const st = $("#ap-revpw-state"); st.textContent = "password set"; st.className = "tag ok";
+  toast("Reviewer password set, share it with your mods");
+}));
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Security

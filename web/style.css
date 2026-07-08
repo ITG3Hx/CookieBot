@@ -413,6 +413,13 @@ h3.sub {
 .sticky-ch { font-family: var(--mono); font-size: 13px; color: var(--cookie-2); flex: 1; }
 .mini-color { width: 40px; height: 30px; padding: 2px; flex: none; }
 
+/* applications: position rows */
+.ap-pos { background: var(--card-2); border: 1px solid var(--edge); border-radius: 10px; padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px; transition: opacity .15s; }
+.ap-pos.off { opacity: .55; }
+.ap-pos-head { display: grid; grid-template-columns: auto minmax(120px, 1fr) minmax(140px, 1.3fr); gap: 10px; align-items: center; }
+.ap-pos-name { font-weight: 600; }
+@media (max-width: 640px) { .ap-pos-head { grid-template-columns: auto 1fr; } .ap-pos-head select { grid-column: 1 / -1; } }
+
 /* channel mention dropdown */
 .dropdown {
   position: absolute; top: 100%; left: 0; right: 0; max-height: 0; overflow: hidden;

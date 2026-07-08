@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff review, Cookie SMP Applications</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#9e1b2f">
+<link rel="stylesheet" href="/apply/apply.css">
+</head>
+<body class="rev-body">
+
+<!-- login -->
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-card">
+      <span class="mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 5 5.5.5-4.2 3.6 1.3 5.4L12 18.7 6.9 21.5 8.2 16 4 12.4l5.5-.5z"/></svg>
+      </span>
+      <h1>Staff review</h1>
+      <p class="sub">Log in with the reviewer password to read and decide on Cookie SMP applications.</p>
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="login-name">Your name</label>
+          <input type="text" id="login-name" placeholder="So decisions show who made them" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="login-pass">Reviewer password</label>
+          <input type="password" id="login-pass" placeholder="Shared with the review team" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Log in</button>
+        <p class="login-err" id="login-error" role="alert" aria-live="assertive"></p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- panel -->
+<div id="panel" class="hidden">
+  <header class="rev-topbar">
+    <div class="wrap">
+      <span class="mark" aria-hidden="true" style="width:32px;height:32px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 5 5.5.5-4.2 3.6 1.3 5.4L12 18.7 6.9 21.5 8.2 16 4 12.4l5.5-.5z"/></svg>
+      </span>
+      <span class="brand-name" style="font-size:1.15rem">Cookie SMP</span>
+      <span class="brand-sub" style="align-self:center">Review</span>
+      <span class="rev-who">Signed in as <b id="reviewer-name">reviewer</b></span>
+      <button class="btn btn-ghost" id="logout-btn" style="padding:.5rem .9rem">Log out</button>
+    </div>
+  </header>
+
+  <div class="rev-main">
+    <div class="filters" id="filters">
+      <button data-filter="all" class="active">All <span class="fcount">0</span></button>
+      <button data-filter="pending">Pending <span class="fcount">0</span></button>
+      <button data-filter="interview">Interview <span class="fcount">0</span></button>
+      <button data-filter="accepted">Accepted <span class="fcount">0</span></button>
+      <button data-filter="denied">Denied <span class="fcount">0</span></button>
+    </div>
+    <div class="rev-cols">
+      <div class="app-list" id="app-list"></div>
+      <div class="detail" id="detail"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="/apply/review.js"></script>
+</body>
+</html>

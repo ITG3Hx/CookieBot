@@ -37,15 +37,30 @@ What you can do from the page:
 
 Everything here is optional and off until you switch it on with the toggle in each card. Changes **auto-save as you type** (you'll see "Saved" at the bottom), and there's still a **Save all automation** button if you want it. A card with an orange edge is currently switched on.
 
-- **Autorole** — pick the role(s) new members get the instant they join (and separate role(s) for bots). Optional delay before assigning. "Apply to all current members" backfills everyone already in the server. The bot's role must sit **above** any role it gives out, and it needs **Manage Roles**.
-- **Welcome / Goodbye** — post to a channel when someone joins or leaves, as plain text or an embed, with a live preview. Welcome can also DM the new member. Placeholders: `{user}` (mention), `{name}`, `{tag}`, `{username}`, `{server}`, `{count}` (member count), `{id}`.
-- **Reaction roles** — build a panel of buttons; members click one to give themselves that role, click again to remove it. Customize each button's label, emoji and color, preview it live, then post it to any channel.
-- **Auto-responder** — when a message matches a trigger (contains / whole word / starts with / exact) the bot replies. Optionally delete the triggering message. Each trigger has a short per-channel cooldown so it can't be spammed. Good for FAQ answers ("ip", "rules", "store"). Type `#` in any message field to pick a channel.
-- **Sticky messages** — keep a message glued to the bottom of a channel; it reposts after people talk (only when someone actually sends a message, so it never spams an idle channel). One per channel, plain or embed. Great for a rules reminder or the server IP.
-- **Message logger** — log messages to a channel for audits, including **edits and deletes**. Add channels to the **skip list** so noisy or protected channels (like #rules) are never logged.
-- **Auto-moderation** — auto-delete rule-breaking messages and optionally time the user out. Filters: caps spam, mention spam, repeated messages, banned words, Discord-invite links, and all links. Set the timeout length or choose "just delete, don't timeout". **Exclusions** let you exempt staff **roles** and whole **channels** (e.g. #memes, #rules) so it never touches them.
+- **Autorole**, pick the role(s) new members get the instant they join (and separate role(s) for bots). Optional delay before assigning. "Apply to all current members" backfills everyone already in the server. The bot's role must sit **above** any role it gives out, and it needs **Manage Roles**.
+- **Welcome / Goodbye**, post to a channel when someone joins or leaves, as plain text or an embed, with a live preview. Welcome can also DM the new member. Placeholders: `{user}` (mention), `{name}`, `{tag}`, `{username}`, `{server}`, `{count}` (member count), `{id}`.
+- **Reaction roles**, build a panel of buttons; members click one to give themselves that role, click again to remove it. Customize each button's label, emoji and color, preview it live, then post it to any channel.
+- **Auto-responder**, when a message matches a trigger (contains / whole word / starts with / exact) the bot replies. Optionally delete the triggering message. Each trigger has a short per-channel cooldown so it can't be spammed. Good for FAQ answers ("ip", "rules", "store"). Type `#` in any message field to pick a channel.
+- **Sticky messages**, keep a message glued to the bottom of a channel; it reposts after people talk (only when someone actually sends a message, so it never spams an idle channel). One per channel, plain or embed. Great for a rules reminder or the server IP.
+- **Message logger**, log messages to a channel for audits, including **edits and deletes**. Add channels to the **skip list** so noisy or protected channels (like #rules) are never logged.
+- **Auto-moderation**, auto-delete rule-breaking messages and optionally time the user out. Filters: caps spam, mention spam, repeated messages, banned words, Discord-invite links, and all links. Set the timeout length or choose "just delete, don't timeout". **Exclusions** let you exempt staff **roles** and whole **channels** (e.g. #memes, #rules) so it never touches them.
 
 **Nothing here edits, resets, or clears your existing channel content.** Auto-mod only removes new rule-breaking messages, and only in channels you haven't excluded. Put #rules on the ignore lists and the bot will leave it completely alone.
+
+## Staff applications (its own site at `/apply`)
+
+A separate, reddish, professional website for staff applications, served by the bot so it can DM applicants and hand out roles. Three parts:
+
+- **Public apply page** at `/apply`, people pick a position (Administrator, Department Leader, Helper, Partner), fill in the form, and get a reference code. No Discord post, nothing public.
+- **Status check** at `/apply/status`, applicants look up where their application stands with that code.
+- **Moderator review panel** at `/apply/review`, your mods log in with a **reviewer password** (separate from your admin password, so they only ever see applications). They read every answer, filter by status, and Accept / Interview / Deny with an optional internal note. On **Accept** the bot DMs the applicant and assigns the Discord role you mapped to that position.
+
+You configure all of it from the dashboard's **Applications** tab: open or close applications, edit each position's blurb, map positions to Discord roles, set the DM messages, the re-apply cooldown, the minimum age, and the reviewer password.
+
+Notes:
+- For auto-assign and DMs to work, give the applicant's Discord user ID on the form (optional field) or make sure their username matches in the server. The bot's role must sit **above** the roles it grants.
+- Set the reviewer password once in the Applications tab (or the `APPLICATIONS_REVIEW_PASSWORD` env var), then share it with your review team.
+- Applications persist in `data/applications.json`. On Railway that is wiped on redeploy unless you attach a volume, so add one if you want a permanent record.
 
 ## Notes
 

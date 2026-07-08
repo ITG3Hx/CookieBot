@@ -44,6 +44,7 @@
       <button class="nav-item" data-view="security"><svg viewBox="0 0 24 24" class="ni"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm0 5a2.5 2.5 0 0 1 2.5 2.5c0 1-.6 1.8-1.5 2.2V15h-2v-3.3c-.9-.4-1.5-1.2-1.5-2.2A2.5 2.5 0 0 1 12 7Z"/></svg>Security</button>
       <button class="nav-item" data-view="giveaways"><svg viewBox="0 0 24 24" class="ni"><path d="M20 7h-2.2a3 3 0 0 0-4.3-4A3 3 0 0 0 12 4a3 3 0 0 0-1.5-1 3 3 0 0 0-4.3 4H4a1 1 0 0 0-1 1v3h9V7h2v4h9V8a1 1 0 0 0-1-1Zm-8-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0Zm-4-1a1 1 0 0 1 2 0 1 1 0 0 1-2 0ZM3 20a1 1 0 0 0 1 1h7v-8H3v7Zm10 1h7a1 1 0 0 0 1-1v-7h-8v8Z"/></svg>Giveaways</button>
       <button class="nav-item" data-view="testers"><svg viewBox="0 0 24 24" class="ni"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 2c-2.7 0-6 1.3-6 4v2h7v-2c0-1 .4-1.9 1-2.7A9.6 9.6 0 0 0 8 13Zm8 0c-3 0-6 1.5-6 4v2h12v-2c0-2.5-3-4-6-4Z"/></svg>Testers</button>
+      <button class="nav-item" data-view="applications"><svg viewBox="0 0 24 24" class="ni"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1Zm1 2v2h4V4h-4Zm-2 7h8v-2H8v2Zm0 4h8v-2H8v2Zm0 4h5v-2H8v2Z"/></svg>Applications</button>
       <button class="nav-item" data-view="messages"><svg viewBox="0 0 24 24" class="ni"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2Z"/></svg>Messages</button>
       <button class="nav-item" data-view="bot"><svg viewBox="0 0 24 24" class="ni"><path d="M12 2a2 2 0 0 0-1 3.7V7H7a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-7a3 3 0 0 0-3-3h-4V5.7A2 2 0 0 0 12 2ZM9 12a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM2 12H1v4h1v-4Zm21 0h-1v4h1v-4Z"/></svg>Bot</button>
     </nav>
@@ -128,7 +129,7 @@
             </div>
 
             <div class="card preview-card">
-              <span class="preview-label">Live preview — how it looks in Discord</span>
+              <span class="preview-label">Live preview, how it looks in Discord</span>
               <div id="tk-panel-preview" class="dc-wrap"></div>
               <div class="row" style="margin-top:16px">
                 <select id="tk-panel-channel" class="input grow"></select>
@@ -493,6 +494,66 @@
       <section id="view-testers" class="view hidden">
         <div class="view-head"><h2>Linked testers</h2></div>
         <div class="card"><div id="testers-list" class="table-wrap"></div></div>
+      </section>
+
+      <!-- Applications -->
+      <section id="view-applications" class="view hidden">
+        <div class="view-head">
+          <h2>Staff applications</h2>
+          <a class="btn ghost" href="/apply" target="_blank" rel="noopener">Open the apply site ↗</a>
+        </div>
+        <p class="section-desc">Your applications live on a separate site at <code>/apply</code>. People apply there; your moderators review them at <code>/apply/review</code>. Configure it here.</p>
+
+        <div class="stat-row" id="ap-stats"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Accepting applications</h2>
+            <label class="switch"><input id="ap-open" type="checkbox"><span class="track"></span></label>
+          </div>
+          <p class="muted small">When off, the public apply page shows a "closed" notice and won't accept submissions.</p>
+          <div class="form-grid">
+            <label>Server name (shown on the site) <input id="ap-servername" class="input" maxlength="60"></label>
+            <label>Minimum age <input id="ap-minage" class="input" type="number" min="13" max="21"></label>
+            <label>Re-apply cooldown (hours) <input id="ap-cooldown" class="input" type="number" min="0" max="720"></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Positions &amp; roles</h2>
+          <p class="muted small">Turn positions on/off, edit their blurb, and map each one to the Discord role the bot grants when you accept someone. The bot's role must sit <b>above</b> the roles it assigns.</p>
+          <div id="ap-positions"></div>
+        </div>
+
+        <div class="card">
+          <h2>On decision</h2>
+          <div class="form-grid">
+            <label class="check"><input id="ap-assignrole" type="checkbox"> Assign the mapped role when accepted</label>
+            <span></span>
+            <label class="check"><input id="ap-dm-accept" type="checkbox"> DM the applicant when accepted</label>
+            <label class="check"><input id="ap-dm-deny" type="checkbox"> DM the applicant when denied</label>
+            <label class="check"><input id="ap-dm-interview" type="checkbox"> DM when marked for interview</label>
+            <span></span>
+            <label class="span2">Accept message <textarea id="ap-msg-accept" class="input" rows="2" maxlength="1500"></textarea></label>
+            <label class="span2">Deny message <textarea id="ap-msg-deny" class="input" rows="2" maxlength="1500"></textarea></label>
+            <label class="span2">Interview message <textarea id="ap-msg-interview" class="input" rows="2" maxlength="1500"></textarea></label>
+          </div>
+          <p class="hint">Placeholders: <code>{name}</code> their Minecraft name, <code>{position}</code>, <code>{server}</code>.</p>
+        </div>
+
+        <div class="card">
+          <h2>Reviewer access</h2>
+          <p class="muted small">Set the password your moderators use to log in at <code>/apply/review</code>. Share it with your review team. It's separate from your admin password, so mods only see applications, nothing else. <span id="ap-revpw-state" class="tag"></span></p>
+          <div class="form-grid">
+            <label>New reviewer password <input id="ap-revpw" class="input" type="text" placeholder="min 4 characters" maxlength="100"></label>
+            <div class="check" style="align-self:end"><button id="ap-revpw-save" class="btn">Set reviewer password</button></div>
+          </div>
+        </div>
+
+        <div class="row end sticky-save">
+          <span id="ap-status" class="muted small"></span>
+          <button id="ap-save" class="btn primary">Save applications settings</button>
+        </div>
       </section>
 
       <!-- Messages -->

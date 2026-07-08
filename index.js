@@ -23,6 +23,8 @@ const { initAutomation, handleAutomationInteraction } = require("./automation");
 // ── NEW: web control panel ─────────────────────────────────────────────────────
 const { mountDashboard, applyStoredPresence } = require("./dashboard");
 
+const { initApplications, mountApplications } = require("./applications");
+
 // ── Config ────────────────────────────────────────────────────────────────────
 const TOKEN          = process.env.DISCORD_TOKEN;
 const CLIENT_ID      = process.env.CLIENT_ID;
@@ -65,7 +67,10 @@ app.use(["/applications", "/testers"], publicLimiter);
 // ── NEW: web control panel (auth + /api + static UI) ───────────────────────────
 mountDashboard(app, client, { guildId: GUILD_ID, ownerId: OWNER_ID });
 
-// ── Application endpoint (existing — unchanged) ────────────────────────────────
+// ── NEW: staff applications site + reviewer panel (served at /apply) ────────────
+mountApplications(app, client, { guildId: GUILD_ID });
+
+// ── Application endpoint (existing, unchanged) ────────────────────────────────
 app.post("/applications", async (req, res) => {
   try {
     const { type, applicationId, answers, rawText } = req.body || {};
@@ -75,7 +80,7 @@ app.post("/applications", async (req, res) => {
     if (channel) {
       const { EmbedBuilder } = require("discord.js");
       const embed = new EmbedBuilder()
-        .setTitle(`New Application — ${type}`)
+        .setTitle(`New Application, ${type}`)
         .setColor(0xff8c00)
         .setDescription(rawText || JSON.stringify(answers, null, 2).slice(0, 4000))
         .setFooter({ text: `ID: ${applicationId || "unknown"}` })
@@ -124,6 +129,7 @@ client.once("ready", async () => {
   initModeration(client, { modlogChannelId: process.env.MODLOG_CHANNEL_ID || LOG_CHANNEL_ID, ownerId: OWNER_ID });
   initTickets(client);          // ── NEW
   initAutomation(client);       // ── NEW: autorole / welcome / goodbye / reaction roles / auto-reply
+  initApplications(client, { guildId: GUILD_ID });   // ── NEW: staff applications
   applyStoredPresence(client);  // ── NEW: presence picked in the dashboard survives restarts
 
   await registerCommands();

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cookie SMP, Staff Applications</title>
+<meta name="description" content="Apply to join the Cookie SMP staff team. Administrator, Department Leader, Helper or Partner. Every application is read by a real member of the team.">
+<meta name="theme-color" content="#9e1b2f">
+<link rel="stylesheet" href="/apply/apply.css">
+</head>
+<body>
+<a class="skip" href="#apply">Skip to application form</a>
+
+<header class="site">
+  <div class="wrap nav">
+    <div class="brand">
+      <a href="/apply" aria-label="Cookie SMP staff applications home">
+        <span class="mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 5 5.5.5-4.2 3.6 1.3 5.4L12 18.7 6.9 21.5 8.2 16 4 12.4l5.5-.5z"/></svg>
+        </span>
+        <span class="brand-txt">
+          <span class="brand-name">Cookie SMP</span>
+          <span class="brand-sub">Staff Applications</span>
+        </span>
+      </a>
+    </div>
+    <button class="nav-toggle" id="nav-burger" aria-expanded="false" aria-controls="nav-links" aria-label="Open navigation menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <nav class="nav-links" id="nav-links" aria-label="Primary">
+      <a href="#positions">Positions</a>
+      <a href="#apply">Apply</a>
+      <a href="/apply/status" class="status">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        Check status
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">Now reviewing applications</p>
+        <h1>Join the <em>Cookie SMP</em> staff team</h1>
+        <p class="lead">Help run one of the community's most active survival servers. We are looking for level headed people who care about players and keep their word.</p>
+        <div class="hero-cta">
+          <a href="#apply" class="btn btn-primary">Start your application <span class="arr" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+          </span></a>
+          <a href="#positions" class="btn btn-ghost">See open roles</a>
+        </div>
+        <div class="reviewed">
+          <div class="avatars" aria-hidden="true"><span>A</span><span>D</span><span>H</span><span>P</span></div>
+          <span>Every application is read by a real member of the staff team.</span>
+        </div>
+      </div>
+
+      <aside class="docket" aria-label="How your application is reviewed">
+        <div class="docket-head">
+          <span class="t">How it works</span>
+          <span class="docket-ref">CSMP</span>
+        </div>
+        <ol>
+          <li><span class="num">01</span><span><span class="step-t">Submit</span><span class="step-d">You complete the form below. It takes about ten minutes.</span></span></li>
+          <li><span class="num">02</span><span><span class="step-t">Review</span><span class="step-d">A staff member reads your answers in full. No bots, no auto reject.</span></span></li>
+          <li><span class="num">03</span><span><span class="step-t">Interview</span><span class="step-d">Shortlisted applicants get a short voice chat on Discord.</span></span></li>
+          <li><span class="num">04</span><span><span class="step-t">Decision</span><span class="step-d">You hear back either way, and your Discord role is set up for you.</span></span></li>
+        </ol>
+        <div class="docket-foot">
+          <span class="dot-live" id="open-dot" aria-hidden="true"></span>
+          <span id="open-state">Applications are currently open.</span>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="positions">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Open positions</p>
+        <h2>Four ways to join the team</h2>
+        <p>Each role sits at a different level of responsibility. Apply for the one that matches your experience. You can grow into the others over time.</p>
+      </div>
+      <div class="cards" id="positions-grid">
+        <button type="button" class="pos-card active" data-pos="administrator"><span class="pos-badge">AD</span><span class="pos-name">Administrator</span><span class="pos-desc">Full server oversight, final calls on disputes, and direction for the whole staff team.</span></button>
+        <button type="button" class="pos-card" data-pos="department-leader"><span class="pos-badge">DE</span><span class="pos-name">Department Leader</span><span class="pos-desc">Runs a single department, sets its standards, and mentors the helpers inside it.</span></button>
+        <button type="button" class="pos-card" data-pos="helper"><span class="pos-badge">HE</span><span class="pos-name">Helper</span><span class="pos-desc">First line of support for players in chat and tickets. The best starting point on the team.</span></button>
+        <button type="button" class="pos-card" data-pos="partner"><span class="pos-badge">PA</span><span class="pos-name">Partner</span><span class="pos-desc">Content creators and communities that help Cookie SMP grow, with perks in return.</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section id="apply">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">The application</p>
+        <h2>Tell us who you are</h2>
+        <p>Answer honestly and in your own words. We would rather read a short, real answer than a long, polished one.</p>
+      </div>
+
+      <div id="closed-note" class="closed-banner hidden">
+        <h3>Applications are closed right now</h3>
+        <p>We are not accepting new staff applications at the moment. Keep an eye on our Discord and check back soon.</p>
+      </div>
+
+      <div class="form-grid" id="form-card">
+        <aside class="form-aside">
+          <div class="panel">
+            <h3>Before you start</h3>
+            <p>A strong application usually has all of these. None are dealbreakers on their own.</p>
+            <ul class="checklist">
+              <li><span class="ck" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></span> You are <span data-minage>13</span> or older and in our Discord</li>
+              <li><span class="ck" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></span> A working microphone for the interview</li>
+              <li><span class="ck" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></span> A few hours a week you can commit to</li>
+              <li><span class="ck" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></span> A calm head when players disagree</li>
+            </ul>
+          </div>
+        </aside>
+
+        <form class="apply" id="apply-form" novalidate>
+          <p class="legend-note">Fields marked <b>*</b> are required. Everything else is optional.</p>
+
+          <fieldset>
+            <p class="fs-label">Role and identity</p>
+            <div class="field full">
+              <label for="f-position">Position you are applying for <span class="req" aria-hidden="true">*</span></label>
+              <select id="f-position" name="position" required>
+                <option value="administrator">Administrator</option>
+                <option value="department-leader">Department Leader</option>
+                <option value="helper">Helper</option>
+                <option value="partner">Partner</option>
+              </select>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="f-discord">Discord username <span class="req" aria-hidden="true">*</span></label>
+                <input type="text" id="f-discord" name="discord" placeholder="yourname" autocomplete="off" required>
+              </div>
+              <div class="field">
+                <label for="f-minecraft">Minecraft username <span class="req" aria-hidden="true">*</span></label>
+                <input type="text" id="f-minecraft" name="minecraft" placeholder="YourIGN" autocomplete="off" required>
+              </div>
+            </div>
+            <div class="field full">
+              <label for="f-discordid">Discord user ID <span class="hint" style="font-weight:400">(optional, lets us set your role automatically)</span></label>
+              <input type="text" id="f-discordid" name="discordId" placeholder="e.g. 481929384756192837" inputmode="numeric" autocomplete="off">
+              <span class="hint">In Discord: Settings, Advanced, turn on Developer Mode, then right click your name and Copy User ID.</span>
+            </div>
+            <div class="row">
+              <div class="field">
+                <label for="f-age">Age <span class="req" aria-hidden="true">*</span></label>
+                <input type="number" id="f-age" name="age" min="13" max="99" placeholder="16" required>
+                <span class="hint">You must be at least <span data-minage>13</span>.</span>
+              </div>
+              <div class="field">
+                <label for="f-timezone">Timezone or country <span class="req" aria-hidden="true">*</span></label>
+                <input type="text" id="f-timezone" name="timezone" placeholder="GMT, United Kingdom" autocomplete="off" required>
+              </div>
+            </div>
+            <div class="field">
+              <label for="f-hours">Hours you can give per week <span class="req" aria-hidden="true">*</span></label>
+              <input type="text" id="f-hours" name="hours" placeholder="e.g. 10 to 15" autocomplete="off" required>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <p class="fs-label">In your own words</p>
+            <div class="field full">
+              <label for="f-experience">Past experience <span class="hint" style="font-weight:400">(optional)</span></label>
+              <textarea id="f-experience" name="experience" placeholder="Other servers you have staffed, moderation tools you know, or anything relevant. Leave blank if this is your first time."></textarea>
+            </div>
+            <div class="field full">
+              <label for="f-why">Why should we pick you? <span class="req" aria-hidden="true">*</span></label>
+              <textarea id="f-why" name="why" required placeholder="What would you bring to the team that someone else might not?"></textarea>
+            </div>
+            <div class="field full">
+              <label for="f-scenario">Scenario question <span class="req" aria-hidden="true">*</span></label>
+              <div class="scenario"><b>Read this, then answer below.</b> Two well known players start a heated argument in chat that is turning personal. One of them is a large donor to the server. How do you handle it?</div>
+              <textarea id="f-scenario" name="scenario" required placeholder="Walk us through exactly what you would do, step by step."></textarea>
+            </div>
+          </fieldset>
+
+          <div class="hp" aria-hidden="true"><label>Leave this empty<input type="text" id="f-website" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+          <div class="form-foot">
+            <div class="submit-row">
+              <button type="submit" class="btn btn-primary" id="submit-btn">Submit application</button>
+              <p class="privacy">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-3 8-7 10-4-2-7-5.6-7-10V6z"/></svg>
+                Your answers are only used to review this application and are shared with the staff team alone. We never sell or post them publicly.
+              </p>
+            </div>
+            <div class="form-error" id="form-error" role="alert" aria-live="assertive"></div>
+          </div>
+        </form>
+      </div>
+
+      <div class="form-msg hidden" id="success" role="status" aria-live="polite">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1f5b33" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
+        <div>
+          <h3>Application received</h3>
+          <p>Your reference is <span class="ref" id="success-ref">CSMP</span>. Save it, you can use it to <a href="/apply/status">check your status</a> any time. Make sure you have joined our Discord so we can reach you.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <span class="brand-name">Cookie SMP</span>
+        <p>A long running community survival server, run by players for players.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Apply</h4>
+        <a href="#positions">Open positions</a>
+        <a href="#apply">Application form</a>
+        <a href="/apply/status">Check status</a>
+      </div>
+      <div class="foot-col">
+        <h4>Community</h4>
+        <a href="https://discord.gg/cookiesmp" target="_blank" rel="noopener">Discord</a>
+        <a href="/apply/review">Staff review panel</a>
+      </div>
+    </div>
+    <div class="disclaimer">
+      <p>Cookie SMP is a community project and is not affiliated with, endorsed by, sponsored by, or associated with Mojang Studios, Microsoft, or Minecraft.</p>
+      <span class="cc">Cookie SMP</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/apply/apply.js"></script>
+</body>
+</html>

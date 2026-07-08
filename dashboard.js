@@ -33,6 +33,7 @@ const security   = require("./security");
 const giveaway   = require("./giveaway");
 const testers    = require("./testers");
 const automation = require("./automation");
+const applications = require("./applications");
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const COOKIE_NAME   = "cb_dash";
@@ -294,6 +295,12 @@ function mountDashboard(app, discordClient, options = {}) {
   api.post("/automation/reaction-roles/post", requireReady, wrap(async (req, res) => send(res, await automation.webPostReactionRoles(String(req.body?.channelId || "")))));
   api.post("/automation/autorole/apply-all", requireReady, wrap(async (req, res) => send(res, await automation.webApplyAutoroleToAll(getGuild()))));
   api.post("/automation/welcome/test", requireReady, wrap(async (req, res) => send(res, await automation.webWelcomeTest(getGuild()))));
+
+  // ── staff applications config (positions -> roles, reviewer password, open/closed) ──
+  api.get("/applications/config", (req, res) => res.json({ ok: true, ...applications.webGetAppConfig() }));
+  api.put("/applications/config", wrap(async (req, res) => send(res, applications.webUpdateAppConfig(req.body || {}))));
+  api.post("/applications/reviewer-password", wrap(async (req, res) => send(res, applications.webSetReviewerPassword(String(req.body?.password || "")))));
+  api.get("/applications/stats", (req, res) => res.json({ ok: true, ...applications.webAppStats() }));
 
   // ── send a message / announcement as the bot ──
   api.post("/message", requireReady, wrap(async (req, res) => {

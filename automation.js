@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * CookieBot — Automation module.
+ * CookieBot, Automation module.
  *
  * One place for the "set it and forget it" server automations, all driven from
  * the dashboard (no slash commands needed):
@@ -142,7 +142,7 @@ async function assignAutorole(member) {
     const addable = roleIds.filter(id => member.guild.roles.cache.get(id)?.editable);
     const skipped = roleIds.length - addable.length;
     if (!addable.length) {
-      pushActivity("automation", `Autorole: can't assign any role to ${member.user.tag} — move my role above them / grant Manage Roles`);
+      pushActivity("automation", `Autorole: can't assign any role to ${member.user.tag}, move my role above them / grant Manage Roles`);
       return;
     }
     try {
@@ -255,7 +255,7 @@ async function handleAutomationInteraction(interaction) {
   const role = interaction.guild.roles.cache.get(roleId);
   if (!role) { await interaction.reply({ content: "That role no longer exists.", ephemeral: true }); return true; }
   if (!role.editable) {
-    await interaction.reply({ content: "I can't manage that role — it sits above my highest role. Ask an admin to move me up.", ephemeral: true });
+    await interaction.reply({ content: "I can't manage that role, it sits above my highest role. Ask an admin to move me up.", ephemeral: true });
     return true;
   }
   const member = interaction.member;
@@ -626,7 +626,7 @@ function initAutomation(discordClient) {
   const rr = state.reactionRoles.roles.length;
   const ar = state.autoResponders.filter(r => r.enabled).length;
   const st = state.stickyMessages.filter(s => s.enabled).length;
-  console.log(`[automation] Ready — autorole ${state.autorole.enabled ? "on" : "off"}, welcome ${state.welcome.enabled ? "on" : "off"}, logger ${state.messageLogger.enabled ? "on" : "off"}, moderation ${state.autoModeration.enabled ? "on" : "off"}, ${rr} reaction role(s), ${ar} responder(s), ${st} sticky.`);
+  console.log(`[automation] Ready, autorole ${state.autorole.enabled ? "on" : "off"}, welcome ${state.welcome.enabled ? "on" : "off"}, logger ${state.messageLogger.enabled ? "on" : "off"}, moderation ${state.autoModeration.enabled ? "on" : "off"}, ${rr} reaction role(s), ${ar} responder(s), ${st} sticky.`);
 }
 
 module.exports = {

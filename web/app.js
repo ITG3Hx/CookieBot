@@ -630,9 +630,11 @@ async function loadAutomation() {
   fillRoleSelect($("#au-ar-role-pick"), { none: "pick a role" });
   fillRoleSelect($("#au-ar-botrole-pick"), { none: "pick a role" });
   fillRoleSelect($("#au-rr-role-pick"), { none: "pick a role" });
+  fillRoleSelect($("#au-mod-ignore-role-pick"), { none: "pick a role" });
   fillChannelSelect($("#au-wel-channel"), { none: "no channel set", value: a.welcome.channelId });
   fillChannelSelect($("#au-bye-channel"), { none: "no channel set", value: a.goodbye.channelId });
   fillChannelSelect($("#au-rr-channel"), { none: "pick a channel" });
+  fillChannelSelect($("#au-log-channel"), { none: "no channel set", value: a.messageLogger.channelId });
 
   // autorole
   $("#au-ar-enabled").checked = a.autorole.enabled;
@@ -665,6 +667,16 @@ async function loadAutomation() {
   renderWelcomePreview();
   renderGoodbyePreview();
   renderRRPreview();
+
+  // message logger
+  $("#au-log-enabled").checked = a.messageLogger.enabled;
+
+  // auto-moderation
+  $("#au-mod-enabled").checked = a.autoModeration.enabled;
+  $("#au-mod-caps").value = a.autoModeration.capsSensitivity;
+  $("#au-mod-capslen").value = a.autoModeration.capsMinLength;
+  $("#au-mod-mentions").value = a.autoModeration.mentionLimit;
+  renderModIgnoreRoles();
 }
 
 // ── autorole chips ──
@@ -813,6 +825,40 @@ function renderRRPreview() {
 });
 $("#au-wel-dm").addEventListener("change", () => $("#au-wel-dm-wrap").classList.toggle("hidden", !$("#au-wel-dm").checked));
 
+// ── auto-moderation ignore roles ──
+function renderModIgnoreRoles() {
+  renderChips($("#au-mod-ignore-roles"), state.automation.autoModeration.ignoreRoles, roleName, "au-mod-ig-rm");
+}
+$("#au-mod-ignore-role-add").addEventListener("click", () => {
+  const id = $("#au-mod-ignore-role-pick").value; if (!id) return;
+  const arr = state.automation.autoModeration.ignoreRoles;
+  if (!arr.includes(id)) arr.push(id);
+  renderModIgnoreRoles();
+  scheduleAutoSave();
+});
+$("#au-mod-ignore-roles").addEventListener("click", (ev) => {
+  const rm = ev.target.closest("[data-au-mod-ig-rm]");
+  if (!rm) return;
+  const idx = +rm.dataset.auModIgRm;
+  state.automation.autoModeration.ignoreRoles.splice(idx, 1);
+  renderModIgnoreRoles();
+  scheduleAutoSave();
+});
+
+// ── auto-save ──
+let autoSaveTimer = null;
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    api("/automation", { method: "PUT", body: collectAutomation() })
+      .then(r => { state.automation = r.automation; $("#au-status").textContent = "Saved " + new Date().toLocaleTimeString(); })
+      .catch(e => console.error("Auto-save failed:", e));
+  }, 1200);  // wait 1.2s after last change
+}
+// add auto-save listeners to all automation fields
+document.querySelectorAll("#au-ar-enabled, #au-ar-delay, #au-wel-enabled, #au-wel-msg, #au-wel-channel, #au-wel-embed, #au-wel-color, #au-wel-ping, #au-wel-dm, #au-wel-dmmsg, #au-bye-enabled, #au-bye-msg, #au-bye-channel, #au-bye-embed, #au-bye-color, #au-rr-title, #au-rr-text, #au-rr-color, #au-log-enabled, #au-log-channel, #au-mod-enabled, #au-mod-caps, #au-mod-capslen, #au-mod-mentions")
+  .forEach(el => { el.addEventListener("input", scheduleAutoSave); el.addEventListener("change", scheduleAutoSave); });
+
 // ── collect + save + actions ──
 function collectAutomation() {
   const a = state.automation;
@@ -847,6 +893,17 @@ function collectAutomation() {
       roles: a.reactionRoles.roles,
     },
     autoResponders: a.autoResponders,
+    messageLogger: {
+      enabled: $("#au-log-enabled").checked,
+      channelId: $("#au-log-channel").value || null,
+    },
+    autoModeration: {
+      enabled: $("#au-mod-enabled").checked,
+      capsSensitivity: Math.max(0, Math.min(100, parseInt($("#au-mod-caps").value, 10) || 70)),
+      capsMinLength: Math.max(5, Math.min(1000, parseInt($("#au-mod-capslen").value, 10) || 10)),
+      mentionLimit: Math.max(1, Math.min(50, parseInt($("#au-mod-mentions").value, 10) || 5)),
+      ignoreRoles: a.autoModeration.ignoreRoles,
+    },
   };
 }
 $("#au-save").addEventListener("click", busy($("#au-save"), async () => {

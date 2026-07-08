@@ -54,6 +54,18 @@ const DEFAULT = {
     roles: [],   // { roleId, label, emoji, style }
   },
   autoResponders: [],  // { id, trigger, match, response, deleteTrigger, enabled }
+  messageLogger: {
+    enabled: false,
+    channelId: null,
+  },
+  autoModeration: {
+    enabled: false,
+    capsSensitivity: 70,
+    capsMinLength: 10,
+    mentionLimit: 5,
+    repeatLimit: 3,
+    ignoreRoles: [],
+  },
 };
 
 let client = null;
@@ -73,6 +85,8 @@ function load() {
         goodbye:       { ...DEFAULT.goodbye,       ...(saved.goodbye || {}) },
         reactionRoles: { ...DEFAULT.reactionRoles, ...(saved.reactionRoles || {}) },
         autoResponders: Array.isArray(saved.autoResponders) ? saved.autoResponders : [],
+        messageLogger: { ...DEFAULT.messageLogger,   ...(saved.messageLogger || {}) },
+        autoModeration: { ...DEFAULT.autoModeration, ...(saved.autoModeration || {}) },
       };
     }
   } catch (e) { console.error("[automation] load:", e.message); state = clone(DEFAULT); }
@@ -244,6 +258,47 @@ async function handleAutomationInteraction(interaction) {
   return true;
 }
 
+// ── Message logger ───────────────────────────────────────────────────────────
+async function onMessageLog(msg) {
+  const l = state.messageLogger;
+  if (!l.enabled || !msg.guild || !msg.author || msg.author.bot) return;
+  const ch = await fetchTextChannel(msg.guild, l.channelId);
+  if (!ch) return;
+  const content = msg.content.slice(0, 1024) || "(no text)";
+  const embed = new EmbedBuilder()
+    .setColor(0x7f8993)
+    .setAuthor({ name: msg.author.tag, iconURL: msg.author.displayAvatarURL() })
+    .setDescription(content)
+    .setFooter({ text: `#${msg.channel.name}` })
+    .setTimestamp(msg.createdTimestamp);
+  if (msg.attachments.size > 0) embed.addFields({ name: "Attachments", value: msg.attachments.map(a => `[${a.name}](${a.url})`).join("\n").slice(0, 1024) });
+  ch.send({ embeds: [embed] }).catch(() => {});
+}
+
+// ── Auto-moderation ───────────────────────────────────────────────────────────
+async function onAutoModerate(msg) {
+  const m = state.autoModeration;
+  if (!m.enabled || !msg.guild || !msg.member || msg.author?.bot || !msg.content) return;
+  if (m.ignoreRoles.some(rid => msg.member.roles.cache.has(rid))) return;
+
+  const caps = (msg.content.match(/[A-Z]/g) || []).length;
+  const lower = (msg.content.match(/[a-z]/g) || []).length;
+  if (caps >= m.capsMinLength && lower > 0 && (caps / (caps + lower)) * 100 > m.capsSensitivity) {
+    await msg.delete().catch(() => {});
+    msg.member.timeout(60000, "Caps spam").catch(() => {});
+    pushActivity("automation", `Auto-mod: timed out ${msg.author.tag} for caps spam`);
+    return;
+  }
+
+  const mentions = msg.mentions.size + (msg.mentions.has(msg.guild.roles.everyone) ? 1 : 0);
+  if (mentions > m.mentionLimit) {
+    await msg.delete().catch(() => {});
+    msg.member.timeout(60000, "Mention spam").catch(() => {});
+    pushActivity("automation", `Auto-mod: timed out ${msg.author.tag} for mention spam (${mentions} mentions)`);
+    return;
+  }
+}
+
 // ── Web dashboard API ─────────────────────────────────────────────────────────
 const isSnow  = v => typeof v === "string" && /^\d{5,25}$/.test(v);
 const isHex   = v => typeof v === "string" && /^#?[0-9a-f]{6}$/i.test(v);
@@ -317,13 +372,32 @@ function vResponders(arr) {
     }));
 }
 
+function vMessageLogger(o) {
+  if (typeof o !== "object" || !o) return null;
+  return {
+    enabled: !!o.enabled,
+    channelId: isSnow(o.channelId) ? o.channelId : null,
+  };
+}
+function vAutoModeration(o) {
+  if (typeof o !== "object" || !o) return null;
+  return {
+    enabled: !!o.enabled,
+    capsSensitivity: Math.max(0, Math.min(100, parseInt(o.capsSensitivity, 10) || 70)),
+    capsMinLength: Math.max(5, Math.min(1000, parseInt(o.capsMinLength, 10) || 10)),
+    mentionLimit: Math.max(1, Math.min(50, parseInt(o.mentionLimit, 10) || 5)),
+    repeatLimit: Math.max(1, Math.min(20, parseInt(o.repeatLimit, 10) || 3)),
+    ignoreRoles: snowList(o.ignoreRoles, 10),
+  };
+}
+
 function publicState() { return clone(state); }
 function webGetAutomation() { return { automation: publicState() }; }
 
 function webUpdateAutomation(patch) {
   patch = patch || {};
   const applied = [];
-  const sections = { autorole: vAutorole, welcome: vWelcome, goodbye: vGoodbye, reactionRoles: vReactionRoles };
+  const sections = { autorole: vAutorole, welcome: vWelcome, goodbye: vGoodbye, reactionRoles: vReactionRoles, messageLogger: vMessageLogger, autoModeration: vAutoModeration };
   for (const [key, validate] of Object.entries(sections)) {
     if (key in patch) {
       const v = validate(patch[key]);
@@ -401,11 +475,15 @@ function initAutomation(discordClient) {
   client.on("guildMemberRemove", (member) => {
     sendGoodbye(member).catch(e => console.error("[automation] goodbye:", e.message));
   });
-  client.on("messageCreate", onMessage);
+  client.on("messageCreate", (msg) => {
+    onMessage(msg);
+    onMessageLog(msg).catch(e => console.error("[automation] logger:", e.message));
+    onAutoModerate(msg).catch(e => console.error("[automation] moderation:", e.message));
+  });
 
   const rr = state.reactionRoles.roles.length;
   const ar = state.autoResponders.filter(r => r.enabled).length;
-  console.log(`[automation] Ready — autorole ${state.autorole.enabled ? "on" : "off"}, welcome ${state.welcome.enabled ? "on" : "off"}, ${rr} reaction role(s), ${ar} responder(s).`);
+  console.log(`[automation] Ready — autorole ${state.autorole.enabled ? "on" : "off"}, welcome ${state.welcome.enabled ? "on" : "off"}, logger ${state.messageLogger.enabled ? "on" : "off"}, moderation ${state.autoModeration.enabled ? "on" : "off"}, ${rr} reaction role(s), ${ar} responder(s).`);
 }
 
 module.exports = {

@@ -289,6 +289,38 @@
           <p class="hint">Replies support the same placeholders. Each trigger has a short cooldown so it can't be spammed.</p>
         </div>
 
+        <!-- Message logger -->
+        <div class="card">
+          <div class="card-head">
+            <h2>Message logger</h2>
+            <label class="switch"><input id="au-log-enabled" type="checkbox"><span class="track"></span></label>
+          </div>
+          <p class="muted small">Every message sent in the server is logged to a channel. Useful for moderation audits.</p>
+          <div class="form-grid">
+            <label>Log channel <select id="au-log-channel" class="input"></select></label>
+          </div>
+        </div>
+
+        <!-- Auto-moderation -->
+        <div class="card">
+          <div class="card-head">
+            <h2>Auto-moderation</h2>
+            <label class="switch"><input id="au-mod-enabled" type="checkbox"><span class="track"></span></label>
+          </div>
+          <p class="muted small">Automatically timeout users for caps spam, mention spam, or repeated messages.</p>
+          <div class="form-grid">
+            <label>Caps sensitivity (%) <input id="au-mod-caps" class="input" type="number" min="0" max="100" value="70"></label>
+            <label>Caps min length <input id="au-mod-capslen" class="input" type="number" min="5" max="1000" value="10"></label>
+            <label>Mention limit per message <input id="au-mod-mentions" class="input" type="number" min="1" max="50" value="5"></label>
+            <label class="span2">Ignore roles (won't be moderated) <div id="au-mod-ignore-roles" class="chips"></div></label>
+            <div class="row" style="margin-top:8px">
+              <select id="au-mod-ignore-role-pick" class="input grow"></select>
+              <button id="au-mod-ignore-role-add" class="btn">Add role</button>
+            </div>
+          </div>
+          <p class="hint small" style="margin-top:8px">Caps spam: 70%+ caps in 10+ chars. Mention spam: 5+ mentions. Repeat: same message 3x. All trigger 1-minute timeout.</p>
+        </div>
+
         <div class="row end sticky-save">
           <span id="au-status" class="muted small"></span>
           <button id="au-save" class="btn primary">Save all automation</button>

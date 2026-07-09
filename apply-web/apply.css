@@ -90,10 +90,6 @@ header.site{position:sticky; top:0; z-index:50; background:rgba(247,243,238,.86)
 .docket .num{font-family:var(--mono); font-size:.72rem; font-weight:700; color:var(--crimson); width:26px; padding-top:.15rem}
 .docket .step-t{font-weight:600; font-size:.98rem; color:var(--ink)}
 .docket .step-d{font-size:.86rem; color:var(--muted); margin-top:.1rem}
-.docket-foot{padding:.85rem 1.25rem; background:var(--paper-2); border-top:1px solid var(--line); font-size:.82rem; color:var(--ink-2); display:flex; align-items:center; gap:.55rem}
-.dot-live{width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px rgba(63,155,90,.16); flex:0 0 auto}
-.dot-live.closed{background:var(--crimson); box-shadow:0 0 0 3px rgba(158,27,47,.16)}
-
 /* sections */
 section{padding:var(--s-6) 0}
 .sec-head{max-width:60ch}
@@ -118,6 +114,7 @@ section{padding:var(--s-6) 0}
 .pos-badge{width:46px; height:46px; border-radius:11px; background:var(--crimson-tint); color:var(--crimson-700); display:grid; place-items:center; border:1px solid var(--crimson-tint-2); font-family:var(--mono); font-weight:700; font-size:1rem; overflow:hidden; flex:none}
 .pos-badge img{width:100%; height:100%; object-fit:cover}
 .pos-badge.emoji{font-size:1.3rem}
+.pos-badge.svgicon svg{width:55%; height:55%}
 .pos-name{font-family:var(--serif); font-size:1.28rem; font-weight:700}
 .pos-desc{margin:0; font-size:.94rem; color:var(--ink-2); line-height:1.5}
 
@@ -126,6 +123,7 @@ section{padding:var(--s-6) 0}
 .dept-chip{width:28px; height:28px; border-radius:8px; background:var(--crimson-tint); color:var(--crimson-700); border:1px solid var(--crimson-tint-2); display:grid; place-items:center; font-family:var(--mono); font-size:.7rem; font-weight:700; overflow:hidden}
 .dept-chip img{width:100%; height:100%; object-fit:cover}
 .dept-chip.emoji{font-size:.9rem}
+.dept-chip.svgicon svg{width:60%; height:60%}
 
 /* apply form */
 #apply{background:var(--paper)}

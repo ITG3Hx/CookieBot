@@ -49,7 +49,7 @@ const DEFAULT_POSITIONS = [
   { id: "helper",         name: "Helper",         roleId: null, enabled: true, description: "Front-line support: answer questions and keep chat friendly and safe." },
   { id: "moderator",      name: "Moderator",      roleId: null, enabled: true, description: "Enforce the rules and keep the community safe." },
   { id: "developer",      name: "Developer",      roleId: null, enabled: true, description: "Build and maintain the server's plugins, bots and systems." },
-  { id: "representative", name: "Representative", roleId: null, enabled: true, description: "Represent your own community or channel as a Cookie SMP partner." },
+  { id: "representative", name: "Representative", roleId: null, enabled: true, description: "Run giveaways and search out new partnerships for Cookie SMP." },
 ];
 
 const DEFAULT_CONFIG = {

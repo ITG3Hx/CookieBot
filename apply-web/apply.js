@@ -39,15 +39,17 @@ function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 // One small line icon per role id, standing in for real Discord role icons
-// until a mapped role actually has a custom icon/emoji set.
+// until a mapped role actually has a custom icon/emoji set. Chosen to echo
+// the server's real role icons: crown for admin, checkmark for moderator,
+// a rising chart for developer, a key for representative, a shield for helper.
 const ROLE_ICON_PATHS = {
-  administrator:     '<path d="M12 2l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V5z"/><path d="M9 12l2 2 4-4"/>',
+  administrator:     '<path d="M4 17l2-9 4.5 4.5L12 6l1.5 6.5L18 8l2 9z"/><path d="M5 20h14"/>',
   "department-leader": '<path d="M12 3l8 4-8 4-8-4z"/><path d="M4 11l8 4 8-4"/><path d="M4 15l8 4 8-4"/>',
-  helper:            '<path d="M21 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 3.2c-.6.4-.9.8-.9 1.6"/><path d="M12 16h.01"/>',
-  partner:           '<path d="M9 11l2 2 4-4"/><path d="M7 8H5a2 2 0 0 0-2 2v9l3-2h5"/><path d="M17 16h2a2 2 0 0 0 2-2V5l-3 2h-5"/>',
-  moderator:         '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
-  developer:         '<path d="M8 6L2 12l6 6"/><path d="M16 6l6 6-6 6"/>',
-  representative:    '<path d="M3 11v2a1 1 0 0 0 1 1h2l4 3V7L6 10H4a1 1 0 0 0-1 1z"/><path d="M14 8a4 4 0 0 1 0 8"/><path d="M17 5a8 8 0 0 1 0 14"/>',
+  helper:            '<path d="M12 2l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V5z"/>',
+  partner:           '<path d="M9 15l6-6"/><path d="M8 12l-3 3a3 3 0 0 0 4.2 4.2l1.3-1.3"/><path d="M16 12l3-3a3 3 0 0 0-4.2-4.2l-1.3 1.3"/>',
+  moderator:         '<path d="M12 2l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V5z"/><path d="M9 12l2 2 4-4"/>',
+  developer:         '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  representative:    '<circle cx="7" cy="17" r="3"/><path d="M9.5 14.5L19 5"/><path d="M16 8l2.5 2.5"/><path d="M13 11l2 2"/>',
 };
 function roleIconSvg(id) {
   const path = ROLE_ICON_PATHS[id];

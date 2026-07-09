@@ -71,13 +71,6 @@ header.site{position:sticky; top:0; z-index:50; background:rgba(247,243,238,.86)
 .hero p.lead{font-size:1.16rem; color:var(--ink-2); max-width:34ch; margin:1.15rem 0 0}
 .hero-cta{display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-3); margin-top:var(--s-4)}
 .reviewed{display:flex; align-items:center; gap:.7rem; margin-top:var(--s-4); color:var(--muted); font-size:.92rem}
-.avatars{display:flex}
-.avatars span{width:28px; height:28px; border-radius:50%; border:2px solid var(--paper); margin-left:-8px; display:grid; place-items:center; font-size:.66rem; font-weight:700; color:#fff; font-family:var(--mono)}
-.avatars span:first-child{margin-left:0}
-.avatars span:nth-child(1){background:#9e1b2f}
-.avatars span:nth-child(2){background:#7a1220}
-.avatars span:nth-child(3){background:#b5482f}
-.avatars span:nth-child(4){background:#8a1728}
 
 /* sections */
 section{padding:var(--s-6) 0}

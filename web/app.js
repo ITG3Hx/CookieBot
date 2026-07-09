@@ -18,6 +18,14 @@ function relTime(ts) {
   if (d < 86_400_000) return `${Math.floor(d / 3_600_000)}h ago`;
   return `${Math.floor(d / 86_400_000)}d ago`;
 }
+function relTimeUntil(ts) {
+  if (!ts) return "-";
+  const d = ts - Date.now();
+  if (d <= 0) return "expired";
+  if (d < 3_600_000) return `in ${Math.max(1, Math.floor(d / 60_000))}m`;
+  if (d < 86_400_000) return `in ${Math.floor(d / 3_600_000)}h`;
+  return `in ${Math.floor(d / 86_400_000)}d`;
+}
 function fmtDur(ms) {
   if (ms == null) return "-";
   const s = Math.floor(ms / 1000);
@@ -1146,7 +1154,46 @@ async function loadApplications() {
   renderAppPositions();
   renderAppDepartments();
   renderAppStats(stats);
+  loadReviewerCodes().catch(() => {});
 }
+
+async function loadReviewerCodes() {
+  const d = await api("/applications/reviewer-codes");
+  renderReviewerCodes(d.codes || []);
+}
+function renderReviewerCodes(codes) {
+  const el = $("#ap-code-list");
+  if (!el) return;
+  if (!codes.length) { el.innerHTML = `<p class="muted small">No codes yet. Generate one below and send it to a moderator.</p>`; return; }
+  el.innerHTML = `<table><thead><tr><th>For</th><th>Code</th><th>Status</th><th>Expires</th><th></th></tr></thead><tbody>
+    ${codes.map(c => {
+      const used = !!c.usedAt;
+      const status = used ? `used by ${esc(c.usedBy || c.label)}` : "unused";
+      return `<tr>
+        <td>${esc(c.label)}</td>
+        <td class="mono">${c.code ? esc(c.code) : `<span class="muted">spent</span>`}</td>
+        <td><span class="tag ${used ? "" : "ok"}">${status}</span></td>
+        <td class="muted small">${used ? "-" : relTimeUntil(c.expiresAt)}</td>
+        <td><button class="btn ghost mini" data-code-rm="${esc(c.code || "")}" ${c.code ? "" : "disabled"} title="revoke">✕</button></td>
+      </tr>`;
+    }).join("")}
+  </tbody></table>`;
+}
+$("#ap-code-create").addEventListener("click", busy($("#ap-code-create"), async () => {
+  const label = $("#ap-code-label").value.trim();
+  if (!label) { toast("Say who the code is for", true); return; }
+  const r = await api("/applications/reviewer-codes", { method: "POST", body: { label } });
+  $("#ap-code-label").value = "";
+  await loadReviewerCodes();
+  toast(`Code for ${r.label}: ${r.code} (copy it now, shown once)`);
+}));
+$("#ap-code-list").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-code-rm]");
+  if (!btn || !btn.dataset.codeRm) return;
+  if (!confirm("Revoke this code? It will stop working immediately.")) return;
+  try { await api(`/applications/reviewer-codes/${encodeURIComponent(btn.dataset.codeRm)}`, { method: "DELETE" }); await loadReviewerCodes(); toast("Code revoked"); }
+  catch (e) { toast(e.message, true); }
+});
 
 function renderAppStats(stats) {
   const el = $("#ap-stats");

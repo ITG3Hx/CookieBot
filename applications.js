@@ -81,7 +81,7 @@ const DEFAULT_CONFIG = {
 
 let client  = null;
 let guildId = null;
-let state   = { config: clone(DEFAULT_CONFIG), applications: [] };
+let state   = { config: clone(DEFAULT_CONFIG), applications: [], reviewerCodes: [] };
 let genReviewerPass = null;
 
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -105,9 +105,10 @@ function load() {
             : clone(DEFAULT_DEPARTMENTS),
         },
         applications: Array.isArray(saved.applications) ? saved.applications : [],
+        reviewerCodes: Array.isArray(saved.reviewerCodes) ? saved.reviewerCodes : [],
       };
     }
-  } catch (e) { console.error("[applications] load:", e.message); state = { config: clone(DEFAULT_CONFIG), applications: [] }; }
+  } catch (e) { console.error("[applications] load:", e.message); state = { config: clone(DEFAULT_CONFIG), applications: [], reviewerCodes: [] }; }
 }
 function save() {
   ensureData();
@@ -150,6 +151,56 @@ function effectiveReviewerHash() {
 function reviewerPasswordMatches(given) {
   try { return crypto.timingSafeEqual(Buffer.from(sha256hex(given), "hex"), Buffer.from(effectiveReviewerHash(), "hex")); }
   catch (e) { return false; }
+}
+
+// ── One-time reviewer codes ───────────────────────────────────────────────────
+// An alternative to the single shared password: the owner mints a code for one
+// specific person, hands it to them once, and it stops working the instant it's
+// used (or after 7 days, whichever comes first). Nothing to rotate or leak.
+const REVIEWER_CODE_TTL = 7 * 86_400_000;
+function newReviewerCode() {
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (const b of crypto.randomBytes(8)) s += alphabet[b % alphabet.length];
+  return `${s.slice(0, 4)}-${s.slice(4, 8)}`;
+}
+function webCreateReviewerCode(label) {
+  const entry = {
+    code: newReviewerCode(),
+    label: clampStr(label, 60).trim() || "reviewer",
+    createdAt: Date.now(),
+    expiresAt: Date.now() + REVIEWER_CODE_TTL,
+    usedAt: null,
+    usedBy: null,
+  };
+  state.reviewerCodes.unshift(entry);
+  if (state.reviewerCodes.length > 200) state.reviewerCodes.length = 200;
+  save();
+  pushActivity("applications", `Created a one-time reviewer code for ${entry.label}`);
+  return { code: entry.code, label: entry.label, expiresAt: entry.expiresAt };
+}
+function webListReviewerCodes() {
+  // the raw code is only useful before it's used, so it's dropped from the list once spent
+  return state.reviewerCodes.map(c => ({
+    code: c.usedAt ? null : c.code,
+    label: c.label, createdAt: c.createdAt, expiresAt: c.expiresAt, usedAt: c.usedAt, usedBy: c.usedBy,
+  }));
+}
+function webDeleteReviewerCode(code) {
+  const i = state.reviewerCodes.findIndex(c => c.code === code);
+  if (i < 0) return { error: "Code not found." };
+  state.reviewerCodes.splice(i, 1);
+  save();
+  return { ok: true };
+}
+// Attempts to spend a one-time code as a login credential. Consumes it on success.
+function tryConsumeReviewerCode(given, name) {
+  const c = state.reviewerCodes.find(x => x.code === given);
+  if (!c || c.usedAt || (c.expiresAt && Date.now() > c.expiresAt)) return null;
+  c.usedAt = Date.now();
+  c.usedBy = clampStr(name, 60).trim() || c.label;
+  save();
+  return c;
 }
 function createReviewerSession(name) {
   const token = crypto.randomBytes(24).toString("base64url");
@@ -518,14 +569,27 @@ function mountApplications(app, discordClient, options = {}) {
   const reviewLimiter = rateLimit({ windowMs: 15 * 60_000, max: 12, standardHeaders: true, legacyHeaders: false, message: { ok: false, error: "Too many attempts, wait 15 minutes." } });
   app.post("/apply/review/login", reviewLimiter, express.json(), (req, res) => {
     const given = String(req.body?.password || "");
-    if (!given || !reviewerPasswordMatches(given)) {
-      pushActivity("applications", "Failed reviewer login");
-      return res.status(401).json({ ok: false, error: "Wrong reviewer password." });
+    const nameField = clampStr(req.body?.name, 60);
+    if (!given) return res.status(401).json({ ok: false, error: "Wrong reviewer password or code." });
+
+    // a one-time code takes priority: if it matches, it's spent right here
+    const code = tryConsumeReviewerCode(given, nameField);
+    if (code) {
+      const reviewerName = nameField || code.label;
+      const token = createReviewerSession(reviewerName);
+      setReviewerCookie(res, req, token, SESSION_TTL);
+      pushActivity("applications", `Reviewer logged in with a one-time code: ${reviewerName}`);
+      return res.json({ ok: true, name: reviewerName });
     }
-    const token = createReviewerSession(req.body?.name);
+
+    if (!reviewerPasswordMatches(given)) {
+      pushActivity("applications", "Failed reviewer login");
+      return res.status(401).json({ ok: false, error: "Wrong reviewer password or code." });
+    }
+    const token = createReviewerSession(nameField);
     setReviewerCookie(res, req, token, SESSION_TTL);
-    pushActivity("applications", `Reviewer logged in: ${clampStr(req.body?.name, 60) || "reviewer"}`);
-    res.json({ ok: true, name: clampStr(req.body?.name, 60) || "reviewer" });
+    pushActivity("applications", `Reviewer logged in: ${nameField || "reviewer"}`);
+    res.json({ ok: true, name: nameField || "reviewer" });
   });
   app.post("/apply/review/logout", (req, res) => {
     const token = readCookie(req, RV_COOKIE);
@@ -558,4 +622,5 @@ function mountApplications(app, discordClient, options = {}) {
 module.exports = {
   initApplications, mountApplications,
   webGetAppConfig, webUpdateAppConfig, webSetReviewerPassword, webAppStats,
+  webCreateReviewerCode, webListReviewerCodes, webDeleteReviewerCode,
 };

@@ -549,11 +549,22 @@
 
         <div class="card">
           <h2>Reviewer access</h2>
-          <p class="muted small">Set the password your moderators use to log in at <code>/apply/review</code>. Share it with your review team. It's separate from your admin password, so mods only see applications, nothing else. <span id="ap-revpw-state" class="tag"></span></p>
+          <p class="muted small">Two ways for moderators to log in at <code>/apply/review</code>, separate from your admin password, so mods only ever see applications.</p>
+
+          <h3 class="sub">Shared password</h3>
+          <p class="muted small">One password everyone on the review team uses.<span id="ap-revpw-state" class="tag"></span></p>
           <div class="form-grid">
             <label>New reviewer password <input id="ap-revpw" class="input" type="text" placeholder="min 4 characters" maxlength="100"></label>
             <div class="check" style="align-self:end"><button id="ap-revpw-save" class="btn">Set reviewer password</button></div>
           </div>
+
+          <h3 class="sub">One-time codes</h3>
+          <p class="muted small">Give each moderator their own single-use code instead. It stops working the instant they log in with it (or after 7 days if never used), so nothing is left to leak or share around.</p>
+          <div class="row">
+            <input id="ap-code-label" class="input grow" placeholder="Who is this for? (e.g. Finn)" maxlength="60">
+            <button id="ap-code-create" class="btn">Generate code</button>
+          </div>
+          <div id="ap-code-list" class="table-wrap" style="margin-top:12px"></div>
         </div>
 
         <div class="row end sticky-save">

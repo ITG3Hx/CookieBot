@@ -302,6 +302,11 @@ function mountDashboard(app, discordClient, options = {}) {
   api.post("/applications/reviewer-password", wrap(async (req, res) => send(res, applications.webSetReviewerPassword(String(req.body?.password || "")))));
   api.get("/applications/stats", (req, res) => res.json({ ok: true, ...applications.webAppStats() }));
 
+  // ── one-time reviewer codes (an alternative to the shared reviewer password) ──
+  api.get("/applications/reviewer-codes", (req, res) => res.json({ ok: true, codes: applications.webListReviewerCodes() }));
+  api.post("/applications/reviewer-codes", wrap(async (req, res) => send(res, applications.webCreateReviewerCode(req.body?.label))));
+  api.delete("/applications/reviewer-codes/:code", wrap(async (req, res) => send(res, applications.webDeleteReviewerCode(req.params.code))));
+
   // ── send a message / announcement as the bot ──
   api.post("/message", requireReady, wrap(async (req, res) => {
     const { channelId, content, embedTitle, embedText, embedColor } = req.body || {};

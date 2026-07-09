@@ -1144,6 +1144,7 @@ async function loadApplications() {
   st.className = "tag " + (c.reviewerPasswordSet ? "ok" : "warn");
 
   renderAppPositions();
+  renderAppDepartments();
   renderAppStats(stats);
 }
 
@@ -1188,6 +1189,32 @@ function apPosEdit(el) {
 $("#ap-positions").addEventListener("input",  (ev) => { const el = ev.target.closest("[data-ap-i]"); if (el) apPosEdit(el); });
 $("#ap-positions").addEventListener("change", (ev) => { const el = ev.target.closest("[data-ap-i]"); if (el) apPosEdit(el); });
 
+function renderAppDepartments() {
+  const departments = state.appConfig.departments || [];
+  $("#ap-departments").innerHTML = departments.map((d, i) => `
+    <div class="ap-pos ${d.enabled ? "" : "off"}">
+      <div class="ap-pos-head">
+        <label class="switch sm"><input type="checkbox" data-apd-i="${i}" data-apd-f="enabled" ${d.enabled ? "checked" : ""}><span class="track"></span></label>
+        <input class="input ap-pos-name" data-apd-i="${i}" data-apd-f="name" value="${esc(d.name)}" maxlength="40">
+        <select class="input" data-apd-i="${i}" data-apd-f="roleId" data-role-value="${esc(d.roleId || "")}"></select>
+      </div>
+      <input class="input" data-apd-i="${i}" data-apd-f="description" value="${esc(d.description || "")}" maxlength="200" placeholder="Short blurb shown on the apply page">
+    </div>`).join("");
+  departments.forEach((d, i) => {
+    const sel = $(`#ap-departments [data-apd-i="${i}"][data-apd-f="roleId"]`);
+    if (sel) fillRoleSelect(sel, { none: "no role (falls back to Department Leader's role)", value: d.roleId });
+  });
+}
+function apDeptEdit(el) {
+  const d = (state.appConfig.departments || [])[+el.dataset.apdI];
+  if (!d) return;
+  const f = el.dataset.apdF;
+  d[f] = (el.type === "checkbox") ? el.checked : (f === "roleId" ? (el.value || null) : el.value);
+  if (f === "enabled") el.closest(".ap-pos").classList.toggle("off", !el.checked);
+}
+$("#ap-departments").addEventListener("input",  (ev) => { const el = ev.target.closest("[data-apd-i]"); if (el) apDeptEdit(el); });
+$("#ap-departments").addEventListener("change", (ev) => { const el = ev.target.closest("[data-apd-i]"); if (el) apDeptEdit(el); });
+
 function collectAppConfig() {
   const c = state.appConfig;
   return {
@@ -1203,6 +1230,7 @@ function collectAppConfig() {
     denyDM: $("#ap-msg-deny").value,
     interviewDM: $("#ap-msg-interview").value,
     positions: c.positions.map(p => ({ id: p.id, name: p.name, description: p.description, enabled: p.enabled, roleId: p.roleId })),
+    departments: (c.departments || []).map(d => ({ id: d.id, name: d.name, description: d.description, enabled: d.enabled, roleId: d.roleId })),
   };
 }
 $("#ap-save").addEventListener("click", busy($("#ap-save"), async () => {

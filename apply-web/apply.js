@@ -32,24 +32,42 @@ async function jpost(url, body) {
   return { ok: res.ok && data.ok !== false, status: res.status, data };
 }
 
-function positionCard(p, active) {
-  return `<button type="button" class="pos-card${active ? " active" : ""}" data-pos="${p.id}">
-    <span class="pos-badge">${initials(p.name)}</span>
-    <span class="pos-name">${escapeHtml(p.name)}</span>
-    <span class="pos-desc">${escapeHtml(p.description || "")}</span>
-  </button>`;
-}
 function initials(name) {
   return name.split(/[\s-]+/).map(w => w[0] || "").join("").slice(0, 2).toUpperCase();
 }
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// badge = { icon, emoji, color } pulled live from the mapped Discord role; falls
+// back to initials when the role has no custom icon/emoji (the common case).
+function badgeHtml(badge, name, cls) {
+  if (badge?.icon) return `<span class="${cls} img"><img src="${escapeHtml(badge.icon)}" alt=""></span>`;
+  if (badge?.emoji) return `<span class="${cls} emoji">${escapeHtml(badge.emoji)}</span>`;
+  return `<span class="${cls}">${escapeHtml(initials(name))}</span>`;
+}
+function positionCard(p, active) {
+  const preview = p.id === "department-leader" && CONFIG?.departments?.length
+    ? `<span class="dept-preview">${CONFIG.departments.map(d => badgeHtml(d.badge, d.name, "dept-chip")).join("")}</span>`
+    : "";
+  return `<button type="button" class="pos-card${active ? " active" : ""}" data-pos="${p.id}">
+    ${badgeHtml(p.badge, p.name, "pos-badge")}
+    <span class="pos-name">${escapeHtml(p.name)}</span>
+    <span class="pos-desc">${escapeHtml(p.description || "")}</span>
+    ${preview}
+  </button>`;
+}
 
+function toggleDepartmentField() {
+  const isDeptLeader = $("#f-position")?.value === "department-leader";
+  $("#f-department-wrap")?.classList.toggle("hidden", !isDeptLeader);
+  const deptSel = $("#f-department");
+  if (deptSel) deptSel.required = isDeptLeader;
+}
 function selectPosition(id) {
   const sel = $("#f-position");
   if (sel) sel.value = id;
   $$(".pos-card").forEach(c => c.classList.toggle("active", c.dataset.pos === id));
+  toggleDepartmentField();
 }
 
 async function loadConfig() {
@@ -78,12 +96,18 @@ async function loadConfig() {
   const sel = $("#f-position");
   if (sel) sel.innerHTML = CONFIG.positions.map((p, i) => `<option value="${p.id}"${i === 0 ? " selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
 
+  const deptSel = $("#f-department");
+  if (deptSel) deptSel.innerHTML = `<option value="" disabled selected>Choose a department</option>` +
+    (CONFIG.departments || []).map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("");
+
   grid?.addEventListener("click", (ev) => {
     const card = ev.target.closest(".pos-card");
     if (!card) return;
     selectPosition(card.dataset.pos);
     $("#form-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
+  sel?.addEventListener("change", toggleDepartmentField);
+  toggleDepartmentField();
 }
 
 function showError(msg) {
@@ -97,6 +121,7 @@ function collect() {
   return {
     website: $("#f-website")?.value || "",   // honeypot
     position: val("#f-position"),
+    department: val("#f-department"),
     discord: val("#f-discord"),
     discordId: val("#f-discordid"),
     minecraft: val("#f-minecraft"),
@@ -112,6 +137,7 @@ function collect() {
 // client-side mirror of the server rules, for instant feedback
 function clientValidate(b) {
   if (!b.position) return "Please choose a position.";
+  if (b.position === "department-leader" && !b.department) return "Pick which department you'd like to lead.";
   if (!b.discord) return "Your Discord username is required.";
   if (!b.minecraft) return "Your Minecraft username is required.";
   const age = parseInt(b.age, 10);

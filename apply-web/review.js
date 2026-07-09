@@ -95,7 +95,7 @@ function renderList() {
     const s = STATUS[a.status] || STATUS.pending;
     return `<button class="app-item${a.id === state.currentId ? " active" : ""}" data-id="${a.id}">
       <div class="app-item-top">
-        <span class="app-pos">${esc(a.positionName)}${a.departmentName ? ` &middot; ${esc(a.departmentName)}` : ""}</span>
+        <span class="app-pos">${esc(a.positionName)}</span>
         <span class="dot ${s.cls}">${s.label}</span>
       </div>
       <div class="app-who">${esc(a.discord)} · <span class="mono">${esc(a.minecraft)}</span></div>
@@ -141,7 +141,6 @@ function renderDetail(a) {
     </div>
 
     <div class="d-grid">
-      ${field("Department", a.departmentName)}
       ${field("Discord", a.discord)}
       ${field("Discord ID", a.discordId, true)}
       ${field("Minecraft", a.minecraft, true)}

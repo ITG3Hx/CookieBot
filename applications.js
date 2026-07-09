@@ -46,20 +46,10 @@ const RV_COOKIE   = "cb_apply";
 const SESSION_TTL = 7 * 86_400_000;   // 7 days
 
 const DEFAULT_POSITIONS = [
-  { id: "administrator",     name: "Administrator",     roleId: null, enabled: true,  description: "Help lead the server and the staff team. The highest level of trust." },
-  { id: "department-leader", name: "Department Leader", roleId: null, enabled: true,  description: "Run a department (moderation, media, events) and guide its team." },
-  { id: "helper",            name: "Helper",            roleId: null, enabled: true,  description: "Front-line support: answer questions and keep chat friendly and safe." },
-  { id: "partner",           name: "Partner",           roleId: null, enabled: true,  description: "Represent your own community or channel as a Cookie SMP partner." },
-];
-
-// The departments a Department Leader applicant picks between. Each can map to
-// its own Discord role, so accepting a "Helper department" leader can hand out
-// a different role than a "Developer department" leader.
-const DEFAULT_DEPARTMENTS = [
-  { id: "helper",         name: "Helper",         roleId: null, enabled: true, description: "Lead the helper team." },
-  { id: "moderator",      name: "Moderator",      roleId: null, enabled: true, description: "Lead the moderation team." },
-  { id: "developer",      name: "Developer",      roleId: null, enabled: true, description: "Lead the development team." },
-  { id: "representative", name: "Representative", roleId: null, enabled: true, description: "Lead partner and community outreach." },
+  { id: "helper",         name: "Helper",         roleId: null, enabled: true, description: "Front-line support: answer questions and keep chat friendly and safe." },
+  { id: "moderator",      name: "Moderator",      roleId: null, enabled: true, description: "Enforce the rules and keep the community safe." },
+  { id: "developer",      name: "Developer",      roleId: null, enabled: true, description: "Build and maintain the server's plugins, bots and systems." },
+  { id: "representative", name: "Representative", roleId: null, enabled: true, description: "Represent your own community or channel as a Cookie SMP partner." },
 ];
 
 const DEFAULT_CONFIG = {
@@ -68,7 +58,6 @@ const DEFAULT_CONFIG = {
   cooldownHours: 24,
   serverName: "Cookie SMP",
   positions: DEFAULT_POSITIONS,
-  departments: DEFAULT_DEPARTMENTS,
   assignRoleOnAccept: true,
   dmOnAccept: true,
   dmOnDeny: true,
@@ -93,16 +82,18 @@ function load() {
     if (fs.existsSync(FILE)) {
       const saved = JSON.parse(fs.readFileSync(FILE, "utf8")) || {};
       const cfg = saved.config || {};
+      // Walk the CURRENT canonical position list, not the saved one, so a
+      // position removed from DEFAULT_POSITIONS (like a retired "administrator")
+      // quietly drops out, and any newly added one always shows up.
+      const savedPositions = Array.isArray(cfg.positions) ? cfg.positions : [];
       state = {
         config: {
           ...DEFAULT_CONFIG,
           ...cfg,
-          positions: Array.isArray(cfg.positions) && cfg.positions.length
-            ? cfg.positions.map(p => ({ ...DEFAULT_POSITIONS.find(d => d.id === p.id), ...p }))
-            : clone(DEFAULT_POSITIONS),
-          departments: Array.isArray(cfg.departments) && cfg.departments.length
-            ? cfg.departments.map(d => ({ ...DEFAULT_DEPARTMENTS.find(x => x.id === d.id), ...d }))
-            : clone(DEFAULT_DEPARTMENTS),
+          positions: DEFAULT_POSITIONS.map(def => {
+            const s = savedPositions.find(p => p.id === def.id);
+            return s ? { ...def, ...s } : clone(def);
+          }),
         },
         applications: Array.isArray(saved.applications) ? saved.applications : [],
         reviewerCodes: Array.isArray(saved.reviewerCodes) ? saved.reviewerCodes : [],
@@ -237,31 +228,15 @@ function getGuild() {
   return (guildId && client.guilds.cache.get(guildId)) || client.guilds.cache.first() || null;
 }
 
-// Cosmetic-only badge info pulled from the mapped Discord role: its custom icon
-// or emoji, and its color. Never returns the roleId itself.
-function roleBadge(guild, roleId) {
-  const role = guild && isSnow(roleId) ? guild.roles.cache.get(roleId) : null;
-  if (!role) return { icon: null, emoji: null, color: null };
-  return {
-    icon: role.iconURL({ size: 64 }) || null,
-    emoji: role.unicodeEmoji || null,
-    color: role.color ? role.hexColor : null,
-  };
-}
-
 // ── Public: config + submit + status ─────────────────────────────────────────
 function publicConfig() {
-  const guild = getGuild();
   return {
     open: !!state.config.open,
     minAge: state.config.minAge,
     serverName: state.config.serverName,
     positions: state.config.positions
       .filter(p => p.enabled)
-      .map(p => ({ id: p.id, name: p.name, description: p.description, badge: roleBadge(guild, p.roleId) })),
-    departments: state.config.departments
-      .filter(d => d.enabled)
-      .map(d => ({ id: d.id, name: d.name, description: d.description, badge: roleBadge(guild, d.roleId) })),
+      .map(p => ({ id: p.id, name: p.name, description: p.description })),
   };
 }
 
@@ -305,14 +280,6 @@ function webSubmit(body, ip) {
   if (why.length < 20)      return { error: "Tell us a bit more about why we should pick you (at least 20 characters)." };
   if (scenario.length < 20) return { error: "Please answer the scenario question (at least 20 characters)." };
 
-  let departmentId = null, departmentName = null;
-  if (pos.id === "department-leader") {
-    const dept = state.config.departments.find(d => d.enabled && d.id === body.department);
-    if (!dept) return { error: "Pick which department you'd like to lead." };
-    departmentId = dept.id;
-    departmentName = dept.name;
-  }
-
   const discordLc = discord.toLowerCase();
   const dupe = recentFor(discordLc);
   if (dupe) {
@@ -325,7 +292,6 @@ function webSubmit(body, ip) {
     ref: newRef(),
     positionId: pos.id,
     positionName: pos.name,
-    departmentId, departmentName,
     discord, discordId, minecraft, age, timezone, hours, experience, why, scenario,
     extra: extraQ,
     status: "pending",
@@ -369,7 +335,7 @@ function webListApplications(filter) {
   return {
     counts,
     applications: list.map(a => ({
-      id: a.id, ref: a.ref, positionName: a.positionName, departmentName: a.departmentName, discord: a.discord,
+      id: a.id, ref: a.ref, positionName: a.positionName, discord: a.discord,
       minecraft: a.minecraft, status: a.status, createdAt: a.createdAt, decidedAt: a.decidedAt, decidedBy: a.decidedBy,
     })),
   };
@@ -423,10 +389,7 @@ async function webDecide(id, action, note, reviewerName) {
       } else {
         if (action === "accept" && state.config.assignRoleOnAccept) {
           const pos = state.config.positions.find(p => p.id === app.positionId);
-          // a department-leader's role comes from their chosen department when one is mapped,
-          // falling back to the position's own role otherwise
-          const dept = app.departmentId ? state.config.departments.find(d => d.id === app.departmentId) : null;
-          const roleId = (dept && dept.roleId) || (pos && pos.roleId) || null;
+          const roleId = (pos && pos.roleId) || null;
           const role = roleId ? guild.roles.cache.get(roleId) : null;
           if (!roleId)             warn = "no Discord role is mapped to this position (set it in the dashboard)";
           else if (!role)        warn = "the mapped role no longer exists";
@@ -471,7 +434,6 @@ function webGetAppConfig() {
       dmOnAccept: !!c.dmOnAccept, dmOnDeny: !!c.dmOnDeny, dmOnInterview: !!c.dmOnInterview,
       acceptDM: c.acceptDM, denyDM: c.denyDM, interviewDM: c.interviewDM,
       positions: c.positions.map(p => ({ id: p.id, name: p.name, roleId: p.roleId, description: p.description, enabled: p.enabled })),
-      departments: c.departments.map(d => ({ id: d.id, name: d.name, roleId: d.roleId, description: d.description, enabled: d.enabled })),
       reviewerPasswordSet: !!(c.reviewerPassHash || process.env.APPLICATIONS_REVIEW_PASSWORD),
     },
   };
@@ -499,16 +461,6 @@ function webUpdateAppConfig(patch) {
       if ("description" in incoming) p.description = clampStr(incoming.description, 200).trim();
       if ("enabled" in incoming)     p.enabled = !!incoming.enabled;
       if ("roleId" in incoming)      p.roleId = isSnow(incoming.roleId) ? incoming.roleId : null;
-    }
-  }
-  if (Array.isArray(patch.departments)) {
-    for (const incoming of patch.departments) {
-      const d = c.departments.find(x => x.id === incoming.id);
-      if (!d) continue;
-      if ("name" in incoming)        d.name = clampStr(incoming.name, 40).trim() || d.name;
-      if ("description" in incoming) d.description = clampStr(incoming.description, 200).trim();
-      if ("enabled" in incoming)     d.enabled = !!incoming.enabled;
-      if ("roleId" in incoming)      d.roleId = isSnow(incoming.roleId) ? incoming.roleId : null;
     }
   }
   save();

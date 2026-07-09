@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cookie SMP, Staff Applications</title>
-<meta name="description" content="Apply to join the Cookie SMP staff team. Administrator, Department Leader, Helper or Partner. Every application is reviewed by moderators.">
+<meta name="description" content="Apply to join the Cookie SMP staff team. Helper, Moderator, Developer or Representative. Every application is reviewed by moderators.">
 <meta name="theme-color" content="#9e1b2f">
 <link rel="stylesheet" href="/apply/apply.css">
 </head>
@@ -53,7 +53,7 @@
           <a href="#positions" class="btn btn-ghost">See open roles</a>
         </div>
         <div class="reviewed">
-          <div class="avatars" aria-hidden="true"><span>A</span><span>D</span><span>H</span><span>P</span></div>
+          <div class="avatars" aria-hidden="true"><span>H</span><span>M</span><span>D</span><span>R</span></div>
           <span>Every application is reviewed by moderators.</span>
         </div>
       </div>
@@ -68,10 +68,10 @@
         <p>Each role sits at a different level of responsibility. Apply for the one that matches your experience. You can grow into the others over time.</p>
       </div>
       <div class="cards" id="positions-grid">
-        <button type="button" class="pos-card active" data-pos="administrator"><span class="pos-badge">AD</span><span class="pos-name">Administrator</span><span class="pos-desc">Full server oversight, final calls on disputes, and direction for the whole staff team.</span></button>
-        <button type="button" class="pos-card" data-pos="department-leader"><span class="pos-badge">DE</span><span class="pos-name">Department Leader</span><span class="pos-desc">Runs a single department, sets its standards, and mentors the helpers inside it.</span></button>
-        <button type="button" class="pos-card" data-pos="helper"><span class="pos-badge">HE</span><span class="pos-name">Helper</span><span class="pos-desc">First line of support for players in chat and tickets. The best starting point on the team.</span></button>
-        <button type="button" class="pos-card" data-pos="partner"><span class="pos-badge">PA</span><span class="pos-name">Partner</span><span class="pos-desc">Content creators and communities that help Cookie SMP grow, with perks in return.</span></button>
+        <button type="button" class="pos-card active" data-pos="helper"><span class="pos-name">Helper</span><span class="pos-desc">Front-line support: answer questions and keep chat friendly and safe.</span></button>
+        <button type="button" class="pos-card" data-pos="moderator"><span class="pos-name">Moderator</span><span class="pos-desc">Enforce the rules and keep the community safe.</span></button>
+        <button type="button" class="pos-card" data-pos="developer"><span class="pos-name">Developer</span><span class="pos-desc">Build and maintain the server's plugins, bots and systems.</span></button>
+        <button type="button" class="pos-card" data-pos="representative"><span class="pos-name">Representative</span><span class="pos-desc">Represent your own community or channel as a Cookie SMP partner.</span></button>
       </div>
     </div>
   </section>
@@ -111,16 +111,10 @@
             <div class="field full">
               <label for="f-position">Position you are applying for <span class="req" aria-hidden="true">*</span></label>
               <select id="f-position" name="position" required>
-                <option value="administrator">Administrator</option>
-                <option value="department-leader">Department Leader</option>
                 <option value="helper">Helper</option>
-                <option value="partner">Partner</option>
-              </select>
-            </div>
-            <div class="field full hidden" id="f-department-wrap">
-              <label for="f-department">Which department would you like to lead? <span class="req" aria-hidden="true">*</span></label>
-              <select id="f-department" name="department">
-                <option value="" disabled selected>Choose a department</option>
+                <option value="moderator">Moderator</option>
+                <option value="developer">Developer</option>
+                <option value="representative">Representative</option>
               </select>
             </div>
             <div class="row">

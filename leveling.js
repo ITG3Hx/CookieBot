@@ -30,9 +30,11 @@ let saveTimer = null;
 const cooldowns = new Map();   // userId -> last xp timestamp
 
 const DEFAULT_CONFIG = {
-  enabled: true,
+  enabled: false,              // master switch, off until activated in the dashboard
   multiplier: 1,               // 0.25 - 3
   cooldownSec: 60,
+  voiceXpEnabled: false,
+  voiceXpPerMin: 5,            // XP per minute spent in voice (not muted, not alone)
   levelUpMode: "same",         // same | channel | off
   levelUpChannelId: "",
   levelUpMessage: "GG {user}, you just reached **level {level}**!",
@@ -171,6 +173,44 @@ async function onMessage(message) {
   }
 }
 
+// ── voice XP (once a minute for everyone actively in voice) ───────────────────
+async function voiceTick() {
+  const cfg = store.config;
+  if (!cfg.enabled || !cfg.voiceXpEnabled || !client?.isReady()) return;
+  for (const guild of client.guilds.cache.values()) {
+    // group voice states by channel so lone members don't farm XP
+    const byChannel = new Map();
+    for (const vs of guild.voiceStates.cache.values()) {
+      if (!vs.channelId || !vs.member || vs.member.user.bot) continue;
+      if (vs.mute || vs.deaf) continue;   // covers self and server mute/deafen
+      if (cfg.noXpChannels.includes(vs.channelId)) continue;
+      if (vs.member.roles.cache.some(r => cfg.noXpRoles.includes(r.id))) continue;
+      if (!byChannel.has(vs.channelId)) byChannel.set(vs.channelId, []);
+      byChannel.get(vs.channelId).push(vs.member);
+    }
+    for (const members of byChannel.values()) {
+      if (members.length < 2) continue;   // alone in a channel earns nothing
+      for (const member of members) {
+        const rec = userRecord(member.id);
+        const before = levelFromXp(rec.xp).level;
+        rec.xp += Math.max(1, Math.round(cfg.voiceXpPerMin * cfg.multiplier));
+        rec.tag = member.user.tag;
+        rec.avatar = member.user.displayAvatarURL({ size: 64, extension: "png" });
+        const after = levelFromXp(rec.xp).level;
+        if (after > before) {
+          // no source message here, announce only if a fixed channel is set
+          if (store.config.levelUpMode === "channel" && store.config.levelUpChannelId) {
+            const ch = await client.channels.fetch(store.config.levelUpChannelId).catch(() => null);
+            if (ch && ch.isTextBased()) await ch.send(fillPlaceholders(store.config.levelUpMessage, member, after)).catch(() => {});
+          }
+          await applyRewards(member, after);
+        }
+      }
+    }
+  }
+  save();
+}
+
 // ── slash commands ────────────────────────────────────────────────────────────
 const LEVELING_COMMANDS = [
   {
@@ -188,6 +228,12 @@ function progressBar(into, need, width = 12) {
 
 async function handleLevelingCommand(interaction) {
   if (!interaction.isChatInputCommand()) return false;
+  if (!["rank", "leaderboard"].includes(interaction.commandName)) return false;
+
+  if (!store.config.enabled) {
+    await interaction.reply({ content: "Leveling is turned off right now. An admin can activate it in the dashboard.", ephemeral: true });
+    return true;
+  }
 
   if (interaction.commandName === "rank") {
     const target = interaction.options.getUser("user") || interaction.user;
@@ -235,9 +281,14 @@ async function handleLevelingCommand(interaction) {
 }
 
 // ── init ──────────────────────────────────────────────────────────────────────
+let voiceTicker = null;
 function initLeveling(discordClient) {
   client = discordClient;
   client.on("messageCreate", (m) => { onMessage(m).catch(e => console.error("[leveling]", e.message)); });
+  if (!voiceTicker) {
+    voiceTicker = setInterval(() => { voiceTick().catch(e => console.error("[leveling] voice:", e.message)); }, 60_000);
+    voiceTicker.unref();
+  }
   console.log(`[leveling] Ready (${Object.keys(store.users).length} tracked users, enabled: ${store.config.enabled})`);
 }
 
@@ -247,7 +298,8 @@ function webGetLeveling() {
 }
 
 function webUpdateLevelingConfig(body) {
-  const c = store.config;
+  // build the candidate first so a validation error never half-applies
+  const c = { ...store.config, noXpChannels: [...store.config.noXpChannels], noXpRoles: [...store.config.noXpRoles], roleRewards: [...store.config.roleRewards] };
   if (typeof body.enabled === "boolean") c.enabled = body.enabled;
   if (body.multiplier !== undefined) {
     const n = Number(body.multiplier);
@@ -258,6 +310,12 @@ function webUpdateLevelingConfig(body) {
     const n = parseInt(body.cooldownSec, 10);
     if (!Number.isInteger(n) || n < 5 || n > 600) return { error: "cooldown must be 5-600 seconds" };
     c.cooldownSec = n;
+  }
+  if (typeof body.voiceXpEnabled === "boolean") c.voiceXpEnabled = body.voiceXpEnabled;
+  if (body.voiceXpPerMin !== undefined) {
+    const n = parseInt(body.voiceXpPerMin, 10);
+    if (!Number.isInteger(n) || n < 1 || n > 60) return { error: "voice XP must be 1-60 per minute" };
+    c.voiceXpPerMin = n;
   }
   if (body.levelUpMode !== undefined) {
     if (!["same", "channel", "off"].includes(body.levelUpMode)) return { error: "bad level-up mode" };
@@ -283,6 +341,7 @@ function webUpdateLevelingConfig(body) {
     c.roleRewards = rewards;
   }
   if (typeof body.publicLeaderboard === "boolean") c.publicLeaderboard = body.publicLeaderboard;
+  store.config = c;
   save();
   return { config: c };
 }

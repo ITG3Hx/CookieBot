@@ -144,6 +144,10 @@ $("#nav").addEventListener("click", (ev) => {
   const btn = ev.target.closest(".nav-item");
   if (btn) switchView(btn.dataset.view);
 });
+$("#view-overview").addEventListener("click", (ev) => {
+  const tile = ev.target.closest("[data-plugin]");
+  if (tile) switchView(tile.dataset.plugin);
+});
 
 // ── shared guild data (channels + roles for every dropdown) ───────────────────
 const TEXTY = [0, 5];   // GuildText, GuildAnnouncement
@@ -259,6 +263,20 @@ async function loadOverview() {
   ];
   $("#ov-stats").innerHTML = stats.map(s =>
     `<div class="stat"><div class="k">${esc(s.k)}</div><div class="v ${s.cls || ""}">${esc(s.v)}</div></div>`).join("");
+
+  if (d.plugins) {
+    const defs = [
+      ["leveling", "Leveling"],
+      ["commands", "Custom commands"],
+      ["timers", "Timed messages"],
+      ["starboard", "Starboard"],
+    ];
+    $("#ov-plugins").innerHTML = defs.map(([key, label]) => `
+      <div class="stat" data-plugin="${key}" style="cursor:pointer">
+        <div class="k">${label}</div>
+        <div class="v ${d.plugins[key] ? "ok" : ""}">${d.plugins[key] ? "active" : "off"}</div>
+      </div>`).join("");
+  }
 
   const sec = d.security;
   $("#ov-security").innerHTML = [
@@ -1581,6 +1599,8 @@ async function loadLeveling() {
   $("#lv-enabled").checked = c.enabled;
   $("#lv-mult").value = c.multiplier;
   $("#lv-cooldown").value = c.cooldownSec;
+  $("#lv-voice").checked = !!c.voiceXpEnabled;
+  $("#lv-voice-xp").value = c.voiceXpPerMin || 5;
   $("#lv-announce-mode").value = c.levelUpMode;
   $("#lv-announce-msg").value = c.levelUpMessage;
   $("#lv-public").checked = c.publicLeaderboard;
@@ -1652,6 +1672,8 @@ $("#lv-save").addEventListener("click", busy($("#lv-save"), async () => {
     enabled: $("#lv-enabled").checked,
     multiplier: parseFloat($("#lv-mult").value) || 1,
     cooldownSec: parseInt($("#lv-cooldown").value, 10) || 60,
+    voiceXpEnabled: $("#lv-voice").checked,
+    voiceXpPerMin: parseInt($("#lv-voice-xp").value, 10) || 5,
     levelUpMode: $("#lv-announce-mode").value,
     levelUpChannelId: $("#lv-announce-channel").value,
     levelUpMessage: $("#lv-announce-msg").value,
@@ -1688,11 +1710,15 @@ $("#lv-reset-all").addEventListener("click", busy($("#lv-reset-all"), async () =
 // ══════════════════════════════════════════════════════════════════════════════
 function renderCcList() {
   const list = state.customcmds.commands;
+  const chOpts = (value) => `<option value="">anywhere</option>` + state.channels.filter(c => TEXTY.includes(c.type))
+    .map(c => `<option value="${c.id}" ${c.id === value ? "selected" : ""}>#${esc(c.name)}</option>`).join("");
+  const roleOpts = (value) => `<option value="">everyone</option>` + state.roles.filter(r => !r.managed)
+    .map(r => `<option value="${r.id}" ${r.id === value ? "selected" : ""}>${esc(r.name)}</option>`).join("");
   $("#cc-list").innerHTML = list.length ? list.map((c, i) => `
     <div class="card" data-cc-i="${i}">
       <div class="card-head">
         <div class="row">
-          <span class="muted mono" id="cc-prefix-echo">${esc(state.customcmds.prefix)}</span>
+          <span class="muted mono">${esc(state.customcmds.prefix)}</span>
           <input class="input cc-name mono" value="${esc(c.name)}" maxlength="32" placeholder="command-name" style="max-width:220px">
           <span class="tag">${(c.uses || 0)} uses</span>
         </div>
@@ -1700,8 +1726,10 @@ function renderCcList() {
       </div>
       <div class="form-grid">
         <label class="span2">Response <textarea class="input cc-response" rows="2" maxlength="3000">${esc(c.response)}</textarea></label>
-        <label class="check"><input class="cc-embed" type="checkbox" ${c.useEmbed ? "checked" : ""}> Send as an embed</label>
-        <span></span>
+        <label>Only works in <select class="input cc-channel">${chOpts(c.onlyChannelId || "")}</select></label>
+        <label>Only for role <select class="input cc-role">${roleOpts(c.requiredRoleId || "")}</select></label>
+        <label>Cooldown (seconds) <input class="input cc-cooldown" type="number" min="1" max="3600" value="${c.cooldownSec || 3}"></label>
+        <label class="check" style="align-self:end"><input class="cc-embed" type="checkbox" ${c.useEmbed ? "checked" : ""}> Send as an embed</label>
         <label>Embed title (optional) <input class="input cc-embed-title" value="${esc(c.embedTitle || "")}" maxlength="256"></label>
         <label>Embed color <input class="input cc-embed-color" value="${esc(c.embedColor || "#ff8c00")}" maxlength="7"></label>
       </div>
@@ -1718,12 +1746,17 @@ function collectCcList() {
     embedTitle: card.querySelector(".cc-embed-title").value,
     embedColor: card.querySelector(".cc-embed-color").value,
     enabled: card.querySelector(".cc-enabled").checked,
+    cooldownSec: parseInt(card.querySelector(".cc-cooldown").value, 10) || 3,
+    onlyChannelId: card.querySelector(".cc-channel").value,
+    requiredRoleId: card.querySelector(".cc-role").value,
   }));
 }
 
 async function loadCommands() {
+  await loadGuildData().catch(() => {});
   const d = await api("/customcommands");
-  state.customcmds = { prefix: d.prefix, commands: d.commands };
+  state.customcmds = { enabled: d.enabled, prefix: d.prefix, commands: d.commands };
+  $("#cc-enabled").checked = !!d.enabled;
   $("#cc-prefix").value = d.prefix;
   renderCcList();
 }
@@ -1745,11 +1778,11 @@ $("#cc-list").addEventListener("click", (ev) => {
   renderCcList();
 });
 $("#cc-save").addEventListener("click", busy($("#cc-save"), async () => {
-  const body = { prefix: $("#cc-prefix").value.trim(), commands: collectCcList() };
+  const body = { enabled: $("#cc-enabled").checked, prefix: $("#cc-prefix").value.trim(), commands: collectCcList() };
   const r = await api("/customcommands", { method: "PUT", body });
-  state.customcmds = { prefix: r.prefix, commands: r.commands };
+  state.customcmds = { enabled: r.enabled, prefix: r.prefix, commands: r.commands };
   renderCcList();
-  toast("Custom commands saved");
+  toast(r.enabled ? "Custom commands saved and active" : "Saved. Custom commands are OFF until you activate them.");
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1807,6 +1840,7 @@ async function loadTimersView() {
   await loadGuildData().catch(() => {});
   const d = await api("/timers");
   state.timers = d.timers;
+  $("#tm-enabled").checked = !!d.enabled;
   renderTmList();
 }
 
@@ -1842,10 +1876,10 @@ $("#tm-list").addEventListener("click", async (ev) => {
   }
 });
 $("#tm-save").addEventListener("click", busy($("#tm-save"), async () => {
-  const r = await api("/timers", { method: "PUT", body: { timers: collectTmList() } });
+  const r = await api("/timers", { method: "PUT", body: { enabled: $("#tm-enabled").checked, timers: collectTmList() } });
   state.timers = r.timers;
   renderTmList();
-  toast("Timed messages saved");
+  toast(r.enabled ? "Timed messages saved and active" : "Saved. Timed messages are OFF until you activate them.");
 }));
 
 // ══════════════════════════════════════════════════════════════════════════════

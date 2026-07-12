@@ -200,6 +200,12 @@ function mountDashboard(app, discordClient, options = {}) {
         linkedTesters: testers.webListTesters().filter(x => x.verified).length,
       },
       security: { antiNuke: sec.config.antiNuke, lockdown: sec.config.lockdown, lockBans: sec.config.lockBans, punishment: sec.config.punishment },
+      plugins: {
+        leveling: leveling.webGetLeveling().config.enabled,
+        commands: customcommands.webGetCustomCommands().enabled,
+        timers: timers.webGetTimers().enabled,
+        starboard: starboard.webGetStarboard().config.enabled,
+      },
       process: { node: process.version, memMB: Math.round(process.memoryUsage().rss / 1048576), uptimeS: Math.round(process.uptime()) },
       activity: listActivity(40),
     });

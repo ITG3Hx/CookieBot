@@ -21,7 +21,7 @@ let client = null;
 let saveTimer = null;
 let ticker = null;
 
-let store = { timers: [] };
+let store = { enabled: false, timers: [] };
 // timer: { id, channelId, message, useEmbed, embedTitle, embedColor, mode: "every"|"daily",
 //          everyHours, at: "HH:MM", enabled, lastRun }
 
@@ -29,7 +29,7 @@ function load() {
   try {
     if (fs.existsSync(FILE)) {
       const raw = JSON.parse(fs.readFileSync(FILE, "utf8"));
-      store = { timers: Array.isArray(raw.timers) ? raw.timers : [] };
+      store = { enabled: !!raw.enabled, timers: Array.isArray(raw.timers) ? raw.timers : [] };
     }
   } catch (e) { console.error("[timers] load:", e.message); }
 }
@@ -74,6 +74,7 @@ async function fireTimer(t) {
 }
 
 async function tick() {
+  if (!store.enabled) return;
   if (!client?.isReady()) return;
   const now = new Date();
   const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -106,11 +107,16 @@ function initTimers(discordClient) {
 
 // ── web accessors ─────────────────────────────────────────────────────────────
 function webGetTimers() {
-  return { timers: store.timers };
+  return { enabled: store.enabled, timers: store.timers };
 }
 
 function webUpdateTimers(body) {
-  if (!Array.isArray(body.timers)) return { error: "timers must be a list" };
+  const nextEnabled = typeof body.enabled === "boolean" ? body.enabled : store.enabled;
+  if (!Array.isArray(body.timers)) {
+    store.enabled = nextEnabled;
+    save();
+    return { enabled: store.enabled, timers: store.timers };
+  }
   if (body.timers.length > 30) return { error: "max 30 timed messages" };
   const next = [];
   for (const t of body.timers) {
@@ -134,9 +140,10 @@ function webUpdateTimers(body) {
       lastRun: prev ? (prev.lastRun || 0) : (mode === "every" ? Date.now() : 0),
     });
   }
+  store.enabled = nextEnabled;
   store.timers = next;
   save();
-  return { timers: store.timers };
+  return { enabled: store.enabled, timers: store.timers };
 }
 
 async function webRunTimer(id) {

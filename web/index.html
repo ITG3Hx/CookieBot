@@ -69,6 +69,11 @@
       <!-- Overview -->
       <section id="view-overview" class="view">
         <div class="stat-row" id="ov-stats"></div>
+        <div class="card">
+          <h2>Plugins</h2>
+          <p class="muted small">The big systems are off until you activate them, so nothing surprises your server. Click one to set it up.</p>
+          <div class="stat-row" id="ov-plugins" style="margin-top:10px"></div>
+        </div>
         <div class="grid-2">
           <div class="card">
             <h2>Security posture</h2>
@@ -577,17 +582,23 @@
           <h2>Leveling</h2>
           <a class="btn ghost" href="/levels" target="_blank" rel="noopener">Public leaderboard ↗</a>
         </div>
-        <p class="section-desc">Members earn 15-25 XP per message. Level-ups can announce a message and hand out role rewards, MEE6 style (same XP curve, so imported expectations match).</p>
+        <p class="section-desc">Members earn 15-25 XP per message. Level-ups can announce a message and hand out role rewards, MEE6 style (same XP curve, so imported expectations match). <b>Off until you flip the Activate switch and save.</b></p>
 
         <div class="card">
           <div class="card-head">
-            <h2>XP gain</h2>
+            <h2>Activate leveling</h2>
             <label class="switch"><input id="lv-enabled" type="checkbox"><span class="track"></span></label>
           </div>
           <div class="form-grid">
             <label>XP multiplier <input id="lv-mult" class="input" type="number" min="0.25" max="3" step="0.25"></label>
             <label>Cooldown between XP (seconds) <input id="lv-cooldown" class="input" type="number" min="5" max="600"></label>
           </div>
+          <h3 class="sub">Voice XP</h3>
+          <div class="form-grid">
+            <label class="check"><input id="lv-voice" type="checkbox"> Give XP for time spent in voice channels</label>
+            <label>Voice XP per minute <input id="lv-voice-xp" class="input" type="number" min="1" max="60"></label>
+          </div>
+          <p class="hint">Voice XP skips bots, muted or deafened members, and anyone sitting alone in a channel.</p>
           <h3 class="sub">No-XP zones</h3>
           <div class="form-grid">
             <label>Channels that give no XP
@@ -666,8 +677,12 @@
           <h2>Custom commands</h2>
           <button id="cc-add" class="btn">Add command</button>
         </div>
-        <p class="section-desc">Text commands you invent, MEE6 style: someone types <code>!rules</code>, the bot answers. Placeholders: <code>{user}</code>, <code>{username}</code>, <code>{server}</code>, <code>{membercount}</code>, <code>{args}</code>.</p>
+        <p class="section-desc">Text commands you invent, MEE6 style: someone types <code>!rules</code>, the bot answers. Placeholders: <code>{user}</code>, <code>{username}</code>, <code>{server}</code>, <code>{membercount}</code>, <code>{args}</code>. <b>Off until you flip the Activate switch and save.</b></p>
         <div class="card">
+          <div class="card-head">
+            <h2>Activate custom commands</h2>
+            <label class="switch"><input id="cc-enabled" type="checkbox"><span class="track"></span></label>
+          </div>
           <div class="form-grid">
             <label>Prefix <input id="cc-prefix" class="input" maxlength="3" style="max-width:110px"></label>
           </div>
@@ -685,7 +700,14 @@
           <h2>Timed messages</h2>
           <button id="tm-add" class="btn">Add timed message</button>
         </div>
-        <p class="section-desc">The bot posts on a schedule: every N hours, or daily at a fixed time (server time). Good for reminders, server IP posts, socials plugs. Placeholders: <code>{server}</code>, <code>{membercount}</code>.</p>
+        <p class="section-desc">The bot posts on a schedule: every N hours, or daily at a fixed time (server time). Good for reminders, server IP posts, socials plugs. Placeholders: <code>{server}</code>, <code>{membercount}</code>. <b>Off until you flip the Activate switch and save.</b></p>
+        <div class="card">
+          <div class="card-head">
+            <h2>Activate timed messages</h2>
+            <label class="switch"><input id="tm-enabled" type="checkbox"><span class="track"></span></label>
+          </div>
+          <p class="muted small">Individual timers below also have their own on/off, this is the master switch for all of them.</p>
+        </div>
         <div id="tm-list"></div>
         <div class="row end sticky-save">
           <span id="tm-status" class="muted small"></span>
@@ -696,10 +718,10 @@
       <!-- Starboard -->
       <section id="view-starboard" class="view hidden">
         <div class="view-head"><h2>Starboard</h2></div>
-        <p class="section-desc">Messages that collect enough star reactions get reposted to a hall-of-fame channel with a jump link. The count updates live and the post is removed if the stars drop below the threshold.</p>
+        <p class="section-desc">Messages that collect enough star reactions get reposted to a hall-of-fame channel with a jump link. The count updates live and the post is removed if the stars drop below the threshold. <b>Off until you pick a channel, flip Activate, and save.</b></p>
         <div class="card">
           <div class="card-head">
-            <h2>Starboard</h2>
+            <h2>Activate starboard</h2>
             <label class="switch"><input id="sb-enabled" type="checkbox"><span class="track"></span></label>
           </div>
           <div class="form-grid">

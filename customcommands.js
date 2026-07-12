@@ -16,21 +16,21 @@ const { EmbedBuilder } = require("discord.js");
 
 const DATA_DIR = path.join(__dirname, "data");
 const FILE = path.join(DATA_DIR, "custom-commands.json");
-const COOLDOWN_MS = 3000;
 const NAME_RE = /^[a-z0-9_-]{1,32}$/;
 
 let client = null;
 let saveTimer = null;
 const cooldowns = new Map();   // `${cmdId}:${channelId}` -> ts
 
-let store = { prefix: "!", commands: [] };
-// command: { id, name, response, useEmbed, embedTitle, embedColor, enabled, uses }
+let store = { enabled: false, prefix: "!", commands: [] };
+// command: { id, name, response, useEmbed, embedTitle, embedColor, enabled, uses,
+//            cooldownSec, onlyChannelId, requiredRoleId }
 
 function load() {
   try {
     if (fs.existsSync(FILE)) {
       const raw = JSON.parse(fs.readFileSync(FILE, "utf8"));
-      store = { prefix: raw.prefix || "!", commands: Array.isArray(raw.commands) ? raw.commands : [] };
+      store = { enabled: !!raw.enabled, prefix: raw.prefix || "!", commands: Array.isArray(raw.commands) ? raw.commands : [] };
     }
   } catch (e) { console.error("[customcmd] load:", e.message); }
 }
@@ -55,6 +55,7 @@ function fill(template, message, args) {
 }
 
 async function onMessage(message) {
+  if (!store.enabled) return;
   if (!message.guild || message.author.bot) return;
   const prefix = store.prefix || "!";
   if (!message.content.startsWith(prefix)) return;
@@ -66,9 +67,13 @@ async function onMessage(message) {
   const cmd = store.commands.find(c => c.enabled !== false && c.name === name);
   if (!cmd) return;
 
+  // per-command restrictions
+  if (cmd.onlyChannelId && message.channelId !== cmd.onlyChannelId) return;
+  if (cmd.requiredRoleId && !message.member?.roles.cache.has(cmd.requiredRoleId)) return;
+
   const key = `${cmd.id}:${message.channelId}`;
   const now = Date.now();
-  if (now - (cooldowns.get(key) || 0) < COOLDOWN_MS) return;
+  if (now - (cooldowns.get(key) || 0) < Math.max(1, cmd.cooldownSec || 3) * 1000) return;
   cooldowns.set(key, now);
 
   cmd.uses = (cmd.uses || 0) + 1;
@@ -100,7 +105,7 @@ function initCustomCommands(discordClient) {
 
 // ── web accessors ─────────────────────────────────────────────────────────────
 function webGetCustomCommands() {
-  return { prefix: store.prefix, commands: store.commands };
+  return { enabled: store.enabled, prefix: store.prefix, commands: store.commands };
 }
 
 function webUpdateCustomCommands(body) {
@@ -118,6 +123,7 @@ function webUpdateCustomCommands(body) {
     seen.add(name);
     const response = String(c.response || "").trim();
     if (!response) return { error: `command "${name}" needs a response` };
+    const cooldownSec = Math.min(3600, Math.max(1, parseInt(c.cooldownSec, 10) || 3));
     const prev = store.commands.find(x => x.id === c.id);
     next.push({
       id: prev ? prev.id : crypto.randomBytes(5).toString("hex"),
@@ -127,13 +133,17 @@ function webUpdateCustomCommands(body) {
       embedTitle: String(c.embedTitle || "").slice(0, 256),
       embedColor: /^#?[0-9a-f]{6}$/i.test(String(c.embedColor || "")) ? String(c.embedColor) : "#ff8c00",
       enabled: c.enabled !== false,
+      cooldownSec,
+      onlyChannelId: /^\d{5,25}$/.test(String(c.onlyChannelId || "")) ? String(c.onlyChannelId) : "",
+      requiredRoleId: /^\d{5,25}$/.test(String(c.requiredRoleId || "")) ? String(c.requiredRoleId) : "",
       uses: prev ? (prev.uses || 0) : 0,
     });
   }
+  if (typeof body.enabled === "boolean") store.enabled = body.enabled;
   store.prefix = prefix;
   store.commands = next;
   save();
-  return { prefix: store.prefix, commands: store.commands };
+  return { enabled: store.enabled, prefix: store.prefix, commands: store.commands };
 }
 
 module.exports = { initCustomCommands, webGetCustomCommands, webUpdateCustomCommands };

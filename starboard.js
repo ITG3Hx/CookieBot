@@ -152,7 +152,8 @@ function webGetStarboard() {
 }
 
 function webUpdateStarboard(body) {
-  const c = store.config;
+  // build the candidate first so a validation error never half-applies
+  const c = { ...store.config };
   if (typeof body.enabled === "boolean") c.enabled = body.enabled;
   if (body.channelId !== undefined) c.channelId = String(body.channelId || "");
   if (body.emoji !== undefined) {
@@ -168,6 +169,7 @@ function webUpdateStarboard(body) {
   if (typeof body.allowSelf === "boolean") c.allowSelf = body.allowSelf;
   if (Array.isArray(body.ignoreChannels)) c.ignoreChannels = body.ignoreChannels.filter(x => /^\d{5,25}$/.test(x)).slice(0, 100);
   if (c.enabled && !c.channelId) return { error: "pick a starboard channel before enabling" };
+  store.config = c;
   save();
   return { config: c };
 }

@@ -20,6 +20,14 @@ const { initModeration, handleModerationCommand, MODERATION_COMMANDS } = require
 const { initTickets, handleTicketInteraction, TICKET_COMMANDS } = require("./tickets");
 // ── NEW: server automations (autorole, welcome/goodbye, reaction roles, auto-reply)
 const { initAutomation, handleAutomationInteraction } = require("./automation");
+// ── NEW: leveling (XP, ranks, role rewards) ────────────────────────────────────
+const { initLeveling, handleLevelingCommand, LEVELING_COMMANDS } = require("./leveling");
+// ── NEW: custom prefix commands built in the dashboard ─────────────────────────
+const { initCustomCommands } = require("./customcommands");
+// ── NEW: timed messages ────────────────────────────────────────────────────────
+const { initTimers } = require("./timers");
+// ── NEW: starboard ─────────────────────────────────────────────────────────────
+const { initStarboard } = require("./starboard");
 // ── NEW: web control panel ─────────────────────────────────────────────────────
 const { mountDashboard, applyStoredPresence } = require("./dashboard");
 
@@ -44,8 +52,9 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildModeration,   // ban events (anti-nuke)
     GatewayIntentBits.GuildWebhooks,     // webhook events (anti-nuke)
+    GatewayIntentBits.GuildMessageReactions,   // starboard
   ],
-  partials: [Partials.Channel, Partials.Message],   // needed to log deletes/edits of uncached messages
+  partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User],   // uncached deletes/edits + starboard reactions
 });
 
 // ── Express server ─────────────────────────────────────────────────────────────
@@ -110,6 +119,7 @@ async function registerCommands() {
     ...TESTER_COMMANDS,        // ── NEW
     ...GIVEAWAY_COMMANDS,      // ── NEW
     ...TICKET_COMMANDS,        // ── NEW
+    ...LEVELING_COMMANDS,      // ── NEW (/rank /leaderboard)
   ];
   try {
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
@@ -130,6 +140,10 @@ client.once("ready", async () => {
   initTickets(client);          // ── NEW
   initAutomation(client);       // ── NEW: autorole / welcome / goodbye / reaction roles / auto-reply
   initApplications(client, { guildId: GUILD_ID });   // ── NEW: staff applications
+  initLeveling(client);         // ── NEW: XP + levels + role rewards
+  initCustomCommands(client);   // ── NEW: dashboard-made prefix commands
+  initTimers(client);           // ── NEW: timed messages
+  initStarboard(client);        // ── NEW: starboard
   applyStoredPresence(client);  // ── NEW: presence picked in the dashboard survives restarts
 
   await registerCommands();
@@ -154,6 +168,9 @@ client.on("interactionCreate", async (interaction) => {
 
     // ── NEW: giveaway commands + Enter button ──────────────────────────────────
     if (await handleGiveawayCommand(interaction)) return;
+
+    // ── NEW: leveling (/rank /leaderboard) ─────────────────────────────────────
+    if (await handleLevelingCommand(interaction)) return;
 
     // existing: security commands
     if (await handleSecurityCommand(interaction)) return;

@@ -120,6 +120,10 @@ const loaders = {
   tickets: loadTickets,
   automation: loadAutomation,
   applications: loadApplications,
+  leveling: loadLeveling,
+  commands: loadCommands,
+  timers: loadTimersView,
+  starboard: loadStarboard,
   moderation: loadModeration,
   security: loadSecurity,
   giveaways: loadGiveaways,
@@ -1537,6 +1541,356 @@ $("#bot-presence-save").addEventListener("click", busy($("#bot-presence-save"), 
     activityText: $("#bot-acttext").value.trim(),
   }});
   toast("Presence applied");
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Leveling
+// ══════════════════════════════════════════════════════════════════════════════
+function renderLvRewards() {
+  const c = state.leveling;
+  const roleOpts = (value) => state.roles.filter(r => !r.managed)
+    .map(r => `<option value="${r.id}" ${r.id === value ? "selected" : ""}>${esc(r.name)}</option>`).join("");
+  $("#lv-rewards").innerHTML = c.roleRewards.length ? c.roleRewards.map((r, i) => `
+    <div class="row" data-lvr-i="${i}" style="margin-bottom:8px">
+      <span class="muted small">Level</span>
+      <input class="input lvr-level" type="number" min="1" max="500" value="${r.level}" style="max-width:90px">
+      <select class="input lvr-role grow">${roleOpts(r.roleId)}</select>
+      <button class="btn mini ghost lvr-rm" title="remove">x</button>
+    </div>`).join("") : `<div class="empty">No role rewards yet. Add one, e.g. level 5 gets a "Regular" role.</div>`;
+}
+
+function collectLvRewards() {
+  return $$("#lv-rewards [data-lvr-i]").map(row => ({
+    level: parseInt(row.querySelector(".lvr-level").value, 10) || 1,
+    roleId: row.querySelector(".lvr-role").value,
+  }));
+}
+
+function renderLvChips() {
+  const c = state.leveling;
+  renderChips($("#lv-noxp-channels"), c.noXpChannels, id => `#${channelName(id)}`, "lv-noxp-ch-rm");
+  renderChips($("#lv-noxp-roles"), c.noXpRoles, roleName, "lv-noxp-role-rm");
+}
+
+async function loadLeveling() {
+  await loadGuildData().catch(() => {});
+  const d = await api("/leveling");
+  state.leveling = d.config;
+  const c = d.config;
+
+  $("#lv-enabled").checked = c.enabled;
+  $("#lv-mult").value = c.multiplier;
+  $("#lv-cooldown").value = c.cooldownSec;
+  $("#lv-announce-mode").value = c.levelUpMode;
+  $("#lv-announce-msg").value = c.levelUpMessage;
+  $("#lv-public").checked = c.publicLeaderboard;
+  $("#lv-reward-mode").value = c.rewardMode;
+  fillChannelSelect($("#lv-announce-channel"), { none: "pick a channel", value: c.levelUpChannelId || null });
+  fillChannelSelect($("#lv-noxp-ch-pick"), { none: "pick a channel" });
+  fillRoleSelect($("#lv-noxp-role-pick"), { none: "pick a role" });
+  renderLvChips();
+  renderLvRewards();
+
+  const lb = await api("/leveling/leaderboard?limit=50");
+  $("#lv-leaderboard").innerHTML = lb.leaderboard.length ? `
+    <table><thead><tr><th>#</th><th>Member</th><th>Level</th><th>XP</th><th>Messages</th><th></th></tr></thead><tbody>
+    ${lb.leaderboard.map(u => `
+      <tr>
+        <td class="mono">${u.rank}</td>
+        <td>${u.avatar ? `<img src="${esc(u.avatar)}" alt="" style="width:22px;height:22px;border-radius:99px;vertical-align:middle;margin-right:7px">` : ""}${esc((u.tag || u.userId).replace(/#0$/, ""))}</td>
+        <td class="mono">${u.level}</td>
+        <td class="mono">${u.xp.toLocaleString()}</td>
+        <td class="mono">${u.messages.toLocaleString()}</td>
+        <td><button class="btn mini ghost" data-lv-reset="${esc(u.userId)}">Reset</button></td>
+      </tr>`).join("")}
+    </tbody></table>` : `<div class="empty">Nobody has XP yet. Once people chat, they show up here.</div>`;
+}
+
+$("#lv-noxp-ch-add").addEventListener("click", () => {
+  const id = $("#lv-noxp-ch-pick").value;
+  if (!id || state.leveling.noXpChannels.includes(id)) return;
+  state.leveling.noXpChannels.push(id);
+  renderLvChips();
+});
+$("#lv-noxp-role-add").addEventListener("click", () => {
+  const id = $("#lv-noxp-role-pick").value;
+  if (!id || state.leveling.noXpRoles.includes(id)) return;
+  state.leveling.noXpRoles.push(id);
+  renderLvChips();
+});
+$("#lv-reward-add").addEventListener("click", () => {
+  state.leveling.roleRewards = collectLvRewards();
+  state.leveling.roleRewards.push({ level: 5, roleId: state.roles.find(r => !r.managed)?.id || "" });
+  renderLvRewards();
+});
+$("#view-leveling").addEventListener("click", async (ev) => {
+  const c = state.leveling;
+  if (!c) return;
+  const chRm = ev.target.closest("[data-lv-noxp-ch-rm]");
+  if (chRm) { c.noXpChannels = c.noXpChannels.filter(x => x !== chRm.dataset.lvNoxpChRm); renderLvChips(); return; }
+  const roleRm = ev.target.closest("[data-lv-noxp-role-rm]");
+  if (roleRm) { c.noXpRoles = c.noXpRoles.filter(x => x !== roleRm.dataset.lvNoxpRoleRm); renderLvChips(); return; }
+  const rwRm = ev.target.closest(".lvr-rm");
+  if (rwRm) {
+    const i = parseInt(rwRm.closest("[data-lvr-i]").dataset.lvrI, 10);
+    c.roleRewards = collectLvRewards();
+    c.roleRewards.splice(i, 1);
+    renderLvRewards();
+    return;
+  }
+  const reset = ev.target.closest("[data-lv-reset]");
+  if (reset) {
+    if (!confirm("Reset this member's XP to zero?")) return;
+    try { await api(`/leveling/users/${reset.dataset.lvReset}`, { method: "DELETE" }); toast("XP reset"); loadLeveling(); }
+    catch (e) { toast(e.message, true); }
+  }
+});
+
+$("#lv-save").addEventListener("click", busy($("#lv-save"), async () => {
+  const c = state.leveling;
+  await api("/leveling", { method: "PUT", body: {
+    enabled: $("#lv-enabled").checked,
+    multiplier: parseFloat($("#lv-mult").value) || 1,
+    cooldownSec: parseInt($("#lv-cooldown").value, 10) || 60,
+    levelUpMode: $("#lv-announce-mode").value,
+    levelUpChannelId: $("#lv-announce-channel").value,
+    levelUpMessage: $("#lv-announce-msg").value,
+    noXpChannels: c.noXpChannels,
+    noXpRoles: c.noXpRoles,
+    rewardMode: $("#lv-reward-mode").value,
+    roleRewards: collectLvRewards(),
+    publicLeaderboard: $("#lv-public").checked,
+  }});
+  toast("Leveling settings saved");
+}));
+
+$("#lv-give").addEventListener("click", busy($("#lv-give"), async () => {
+  const userId = $("#lv-give-user").value.trim();
+  const amount = parseInt($("#lv-give-amount").value, 10);
+  if (!userId) throw new Error("Paste a user ID");
+  if (!amount) throw new Error("Amount can't be zero");
+  const r = await api("/leveling/givexp", { method: "POST", body: { userId, amount } });
+  toast(`Done, they now have ${r.xp.toLocaleString()} XP (level ${r.level})`);
+  $("#lv-give-user").value = ""; $("#lv-give-amount").value = "";
+  loadLeveling().catch(() => {});
+}));
+
+$("#lv-reset-all").addEventListener("click", busy($("#lv-reset-all"), async () => {
+  if (!confirm("Wipe ALL XP for everyone? This cannot be undone.")) return;
+  if (!confirm("Really sure? The whole leaderboard goes to zero.")) return;
+  const r = await api("/leveling/reset-all", { method: "POST" });
+  toast(`Reset ${r.removed} member(s)`);
+  loadLeveling().catch(() => {});
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Custom commands
+// ══════════════════════════════════════════════════════════════════════════════
+function renderCcList() {
+  const list = state.customcmds.commands;
+  $("#cc-list").innerHTML = list.length ? list.map((c, i) => `
+    <div class="card" data-cc-i="${i}">
+      <div class="card-head">
+        <div class="row">
+          <span class="muted mono" id="cc-prefix-echo">${esc(state.customcmds.prefix)}</span>
+          <input class="input cc-name mono" value="${esc(c.name)}" maxlength="32" placeholder="command-name" style="max-width:220px">
+          <span class="tag">${(c.uses || 0)} uses</span>
+        </div>
+        <label class="switch"><input class="cc-enabled" type="checkbox" ${c.enabled !== false ? "checked" : ""}><span class="track"></span></label>
+      </div>
+      <div class="form-grid">
+        <label class="span2">Response <textarea class="input cc-response" rows="2" maxlength="3000">${esc(c.response)}</textarea></label>
+        <label class="check"><input class="cc-embed" type="checkbox" ${c.useEmbed ? "checked" : ""}> Send as an embed</label>
+        <span></span>
+        <label>Embed title (optional) <input class="input cc-embed-title" value="${esc(c.embedTitle || "")}" maxlength="256"></label>
+        <label>Embed color <input class="input cc-embed-color" value="${esc(c.embedColor || "#ff8c00")}" maxlength="7"></label>
+      </div>
+      <div class="row end"><button class="btn mini ghost cc-rm">Remove command</button></div>
+    </div>`).join("") : `<div class="empty">No custom commands yet. Hit "Add command".</div>`;
+}
+
+function collectCcList() {
+  return $$("#cc-list [data-cc-i]").map((card, i) => ({
+    id: state.customcmds.commands[i]?.id,
+    name: card.querySelector(".cc-name").value.trim().toLowerCase(),
+    response: card.querySelector(".cc-response").value,
+    useEmbed: card.querySelector(".cc-embed").checked,
+    embedTitle: card.querySelector(".cc-embed-title").value,
+    embedColor: card.querySelector(".cc-embed-color").value,
+    enabled: card.querySelector(".cc-enabled").checked,
+  }));
+}
+
+async function loadCommands() {
+  const d = await api("/customcommands");
+  state.customcmds = { prefix: d.prefix, commands: d.commands };
+  $("#cc-prefix").value = d.prefix;
+  renderCcList();
+}
+
+$("#cc-add").addEventListener("click", () => {
+  if (!state.customcmds) return;
+  state.customcmds.commands = collectCcList().map((c, i) => ({ ...state.customcmds.commands[i], ...c }));
+  state.customcmds.commands.push({ name: "", response: "", useEmbed: false, embedColor: "#ff8c00", enabled: true, uses: 0 });
+  renderCcList();
+  const last = $$("#cc-list [data-cc-i]").pop();
+  if (last) last.querySelector(".cc-name").focus();
+});
+$("#cc-list").addEventListener("click", (ev) => {
+  const rm = ev.target.closest(".cc-rm");
+  if (!rm) return;
+  const i = parseInt(rm.closest("[data-cc-i]").dataset.ccI, 10);
+  state.customcmds.commands = collectCcList().map((c, j) => ({ ...state.customcmds.commands[j], ...c }));
+  state.customcmds.commands.splice(i, 1);
+  renderCcList();
+});
+$("#cc-save").addEventListener("click", busy($("#cc-save"), async () => {
+  const body = { prefix: $("#cc-prefix").value.trim(), commands: collectCcList() };
+  const r = await api("/customcommands", { method: "PUT", body });
+  state.customcmds = { prefix: r.prefix, commands: r.commands };
+  renderCcList();
+  toast("Custom commands saved");
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Timed messages
+// ══════════════════════════════════════════════════════════════════════════════
+function renderTmList() {
+  const chOpts = (value) => state.channels.filter(c => TEXTY.includes(c.type))
+    .map(c => `<option value="${c.id}" ${c.id === value ? "selected" : ""}>#${esc(c.name)}</option>`).join("");
+  const list = state.timers;
+  $("#tm-list").innerHTML = list.length ? list.map((t, i) => `
+    <div class="card" data-tm-i="${i}">
+      <div class="card-head">
+        <div class="row">
+          <select class="input tm-channel">${chOpts(t.channelId)}</select>
+          <select class="input tm-mode">
+            <option value="every" ${t.mode !== "daily" ? "selected" : ""}>Every N hours</option>
+            <option value="daily" ${t.mode === "daily" ? "selected" : ""}>Daily at</option>
+          </select>
+          <input class="input tm-every" type="number" min="1" max="720" value="${t.everyHours || 24}" style="max-width:90px;${t.mode === "daily" ? "display:none" : ""}">
+          <input class="input tm-at" type="time" value="${esc(t.at || "12:00")}" style="max-width:120px;${t.mode !== "daily" ? "display:none" : ""}">
+        </div>
+        <label class="switch"><input class="tm-enabled" type="checkbox" ${t.enabled !== false ? "checked" : ""}><span class="track"></span></label>
+      </div>
+      <div class="form-grid">
+        <label class="span2">Message <textarea class="input tm-message" rows="2" maxlength="3000">${esc(t.message || "")}</textarea></label>
+        <label class="check"><input class="tm-embed" type="checkbox" ${t.useEmbed ? "checked" : ""}> Send as an embed</label>
+        <span></span>
+        <label>Embed title (optional) <input class="input tm-embed-title" value="${esc(t.embedTitle || "")}" maxlength="256"></label>
+        <label>Embed color <input class="input tm-embed-color" value="${esc(t.embedColor || "#ff8c00")}" maxlength="7"></label>
+      </div>
+      <div class="row end">
+        ${t.id ? `<button class="btn mini tm-test">Post now</button>` : ""}
+        <span class="muted small">${t.lastRun ? `last posted ${relTime(t.lastRun)}` : "not posted yet"}</span>
+        <button class="btn mini ghost tm-rm">Remove</button>
+      </div>
+    </div>`).join("") : `<div class="empty">No timed messages yet. Hit "Add timed message".</div>`;
+}
+
+function collectTmList() {
+  return $$("#tm-list [data-tm-i]").map((card, i) => ({
+    id: state.timers[i]?.id,
+    channelId: card.querySelector(".tm-channel").value,
+    mode: card.querySelector(".tm-mode").value,
+    everyHours: parseInt(card.querySelector(".tm-every").value, 10) || 24,
+    at: card.querySelector(".tm-at").value || "12:00",
+    message: card.querySelector(".tm-message").value,
+    useEmbed: card.querySelector(".tm-embed").checked,
+    embedTitle: card.querySelector(".tm-embed-title").value,
+    embedColor: card.querySelector(".tm-embed-color").value,
+    enabled: card.querySelector(".tm-enabled").checked,
+  }));
+}
+
+async function loadTimersView() {
+  await loadGuildData().catch(() => {});
+  const d = await api("/timers");
+  state.timers = d.timers;
+  renderTmList();
+}
+
+$("#tm-add").addEventListener("click", () => {
+  if (!state.timers) return;
+  state.timers = collectTmList().map((t, i) => ({ ...state.timers[i], ...t }));
+  state.timers.push({ channelId: state.channels.find(c => TEXTY.includes(c.type))?.id || "", mode: "every", everyHours: 24, at: "12:00", message: "", enabled: true });
+  renderTmList();
+});
+$("#tm-list").addEventListener("change", (ev) => {
+  if (!ev.target.classList.contains("tm-mode")) return;
+  const card = ev.target.closest("[data-tm-i]");
+  const daily = ev.target.value === "daily";
+  card.querySelector(".tm-every").style.display = daily ? "none" : "";
+  card.querySelector(".tm-at").style.display = daily ? "" : "none";
+});
+$("#tm-list").addEventListener("click", async (ev) => {
+  const rm = ev.target.closest(".tm-rm");
+  if (rm) {
+    const i = parseInt(rm.closest("[data-tm-i]").dataset.tmI, 10);
+    state.timers = collectTmList().map((t, j) => ({ ...state.timers[j], ...t }));
+    state.timers.splice(i, 1);
+    renderTmList();
+    return;
+  }
+  const test = ev.target.closest(".tm-test");
+  if (test) {
+    const i = parseInt(test.closest("[data-tm-i]").dataset.tmI, 10);
+    const id = state.timers[i]?.id;
+    if (!id) return;
+    try { await api(`/timers/${id}/run`, { method: "POST" }); toast("Posted"); loadTimersView(); }
+    catch (e) { toast(e.message, true); }
+  }
+});
+$("#tm-save").addEventListener("click", busy($("#tm-save"), async () => {
+  const r = await api("/timers", { method: "PUT", body: { timers: collectTmList() } });
+  state.timers = r.timers;
+  renderTmList();
+  toast("Timed messages saved");
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Starboard
+// ══════════════════════════════════════════════════════════════════════════════
+function renderSbChips() {
+  renderChips($("#sb-ignore"), state.starboard.ignoreChannels, id => `#${channelName(id)}`, "sb-ig-rm");
+}
+
+async function loadStarboard() {
+  await loadGuildData().catch(() => {});
+  const d = await api("/starboard");
+  state.starboard = d.config;
+  $("#sb-enabled").checked = d.config.enabled;
+  $("#sb-emoji").value = d.config.emoji;
+  $("#sb-threshold").value = d.config.threshold;
+  $("#sb-self").checked = d.config.allowSelf;
+  fillChannelSelect($("#sb-channel"), { none: "pick a channel", value: d.config.channelId || null });
+  fillChannelSelect($("#sb-ignore-pick"), { none: "pick a channel" });
+  renderSbChips();
+  $("#sb-count").textContent = d.starred ? `${d.starred} message(s) on the starboard so far.` : "";
+}
+
+$("#sb-ignore-add").addEventListener("click", () => {
+  const id = $("#sb-ignore-pick").value;
+  if (!id || state.starboard.ignoreChannels.includes(id)) return;
+  state.starboard.ignoreChannels.push(id);
+  renderSbChips();
+});
+$("#view-starboard").addEventListener("click", (ev) => {
+  const rm = ev.target.closest("[data-sb-ig-rm]");
+  if (!rm || !state.starboard) return;
+  state.starboard.ignoreChannels = state.starboard.ignoreChannels.filter(x => x !== rm.dataset.sbIgRm);
+  renderSbChips();
+});
+$("#sb-save").addEventListener("click", busy($("#sb-save"), async () => {
+  await api("/starboard", { method: "PUT", body: {
+    enabled: $("#sb-enabled").checked,
+    channelId: $("#sb-channel").value,
+    emoji: $("#sb-emoji").value.trim() || "⭐",
+    threshold: parseInt($("#sb-threshold").value, 10) || 3,
+    allowSelf: $("#sb-self").checked,
+    ignoreChannels: state.starboard.ignoreChannels,
+  }});
+  toast("Starboard saved");
 }));
 
 // ── boot ──────────────────────────────────────────────────────────────────────

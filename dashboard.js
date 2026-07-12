@@ -34,6 +34,10 @@ const giveaway   = require("./giveaway");
 const testers    = require("./testers");
 const automation = require("./automation");
 const applications = require("./applications");
+const leveling = require("./leveling");
+const customcommands = require("./customcommands");
+const timers = require("./timers");
+const starboard = require("./starboard");
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const COOKIE_NAME   = "cb_dash";
@@ -330,6 +334,58 @@ function mountDashboard(app, discordClient, options = {}) {
     res.json({ ok: true });
   }));
 
+  // ── leveling ──
+  api.get("/leveling", (req, res) => res.json({ ok: true, ...leveling.webGetLeveling() }));
+  api.put("/leveling", wrap(async (req, res) => {
+    const result = leveling.webUpdateLevelingConfig(req.body || {});
+    if (!result.error) pushActivity("leveling", "Leveling settings updated via dashboard");
+    send(res, result);
+  }));
+  api.get("/leveling/leaderboard", (req, res) => {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    res.json({ ok: true, leaderboard: leveling.webLeaderboard(limit) });
+  });
+  api.post("/leveling/givexp", wrap(async (req, res) => {
+    const result = leveling.webGiveXp(String(req.body?.userId || ""), req.body?.amount);
+    if (!result.error) pushActivity("leveling", `Gave ${req.body?.amount} XP via dashboard`);
+    send(res, result);
+  }));
+  api.delete("/leveling/users/:id", wrap(async (req, res) => {
+    const result = leveling.webResetUser(req.params.id);
+    if (!result.error) pushActivity("leveling", "Reset a member's XP via dashboard");
+    send(res, result);
+  }));
+  api.post("/leveling/reset-all", wrap(async (req, res) => {
+    const result = leveling.webResetAll();
+    pushActivity("leveling", `Full XP reset via dashboard (${result.removed} members)`);
+    send(res, result);
+  }));
+
+  // ── custom commands ──
+  api.get("/customcommands", (req, res) => res.json({ ok: true, ...customcommands.webGetCustomCommands() }));
+  api.put("/customcommands", wrap(async (req, res) => {
+    const result = customcommands.webUpdateCustomCommands(req.body || {});
+    if (!result.error) pushActivity("commands", "Custom commands updated via dashboard");
+    send(res, result);
+  }));
+
+  // ── timed messages ──
+  api.get("/timers", (req, res) => res.json({ ok: true, ...timers.webGetTimers() }));
+  api.put("/timers", wrap(async (req, res) => {
+    const result = timers.webUpdateTimers(req.body || {});
+    if (!result.error) pushActivity("timers", "Timed messages updated via dashboard");
+    send(res, result);
+  }));
+  api.post("/timers/:id/run", requireReady, wrap(async (req, res) => send(res, await timers.webRunTimer(req.params.id))));
+
+  // ── starboard ──
+  api.get("/starboard", (req, res) => res.json({ ok: true, ...starboard.webGetStarboard() }));
+  api.put("/starboard", wrap(async (req, res) => {
+    const result = starboard.webUpdateStarboard(req.body || {});
+    if (!result.error) pushActivity("starboard", "Starboard settings updated via dashboard");
+    send(res, result);
+  }));
+
   // ── bot presence ──
   api.get("/presence", (req, res) => res.json({ ok: true, presence: panelState.presence }));
   api.put("/presence", requireReady, wrap(async (req, res) => {
@@ -345,6 +401,63 @@ function mountDashboard(app, discordClient, options = {}) {
   }));
 
   app.use("/api", api);
+
+  // ── public leaderboard (no login), only when turned on in the panel ──
+  app.get("/levels.json", (req, res) => {
+    if (!leveling.webPublicEnabled()) return res.status(404).json({ ok: false, error: "not enabled" });
+    const guild = getGuild();
+    res.json({
+      ok: true,
+      server: guild ? { name: guild.name, icon: guild.iconURL({ size: 128 }) } : null,
+      leaderboard: leveling.webLeaderboard(50).map(u => ({
+        rank: u.rank, tag: (u.tag || "member").replace(/#0$/, ""), avatar: u.avatar,
+        level: u.level, xp: u.xp, into: u.into, need: u.need,
+      })),
+    });
+  });
+  app.get("/levels", (req, res) => {
+    if (!leveling.webPublicEnabled()) return res.status(404).send("Leaderboard is not public.");
+    res.type("html").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaderboard</title>
+<style>
+body{background:#0e0b09;color:#f2ede7;font:15px/1.6 -apple-system,"Segoe UI",sans-serif;margin:0;padding:36px 16px}
+.wrap{max-width:640px;margin:0 auto}
+.head{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+.head img{width:52px;height:52px;border-radius:14px}
+h1{font-size:20px;margin:0}
+p.sub{color:#9a8f83;font-size:13px;margin:2px 0 0}
+.row{display:flex;align-items:center;gap:12px;background:#171310;border:1px solid #2a231d;border-radius:12px;padding:11px 14px;margin-bottom:8px}
+.rank{width:34px;text-align:center;font-weight:700;color:#9a8f83}
+.row:nth-child(1) .rank{color:#ffd700}.row:nth-child(2) .rank{color:#c0c0c0}.row:nth-child(3) .rank{color:#cd7f32}
+.row img{width:36px;height:36px;border-radius:99px;background:#2a231d}
+.who{flex:1;min-width:0}
+.name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:6px;background:#2a231d;border-radius:99px;margin-top:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:#ff8c00;border-radius:99px}
+.lv{text-align:right;font-size:12.5px;color:#9a8f83;min-width:86px}
+.lv b{display:block;color:#f2ede7;font-size:14px}
+.empty{color:#9a8f83;text-align:center;padding:40px 0}
+</style></head><body><div class="wrap">
+<div class="head" id="head"><div><h1>Leaderboard</h1><p class="sub">Most active members, updated live.</p></div></div>
+<div id="list"><p class="empty">Loading...</p></div>
+</div><script>
+async function load(){
+  try{
+    const r=await fetch("/levels.json");const d=await r.json();
+    if(d.server){document.getElementById("head").innerHTML=(d.server.icon?'<img src="'+d.server.icon+'" alt="">':'')+'<div><h1>'+d.server.name.replace(/[<>&]/g,"")+' leaderboard</h1><p class="sub">Most active members, updated live.</p></div>';}
+    const list=document.getElementById("list");
+    if(!d.leaderboard.length){list.innerHTML='<p class="empty">Nobody has XP yet.</p>';return}
+    list.innerHTML=d.leaderboard.map(function(u){
+      var pct=Math.round(u.into/u.need*100);
+      return '<div class="row"><div class="rank">#'+u.rank+'</div>'+(u.avatar?'<img src="'+u.avatar+'" alt="">':'<img alt="">')+'<div class="who"><div class="name">'+u.tag.replace(/[<>&]/g,"")+'</div><div class="bar"><i style="width:'+pct+'%"></i></div></div><div class="lv"><b>Level '+u.level+'</b>'+u.xp.toLocaleString()+' XP</div></div>';
+    }).join("");
+  }catch(e){}
+}
+load();setInterval(load,60000);
+</script></body></html>`);
+  });
+
   console.log("[dashboard] Control panel mounted at /dashboard");
 }
 

@@ -28,6 +28,8 @@ const { initCustomCommands } = require("./customcommands");
 const { initTimers } = require("./timers");
 // ── NEW: starboard ─────────────────────────────────────────────────────────────
 const { initStarboard } = require("./starboard");
+// ── NEW: commands-only channels (auto-delete chatter) ─────────────────────────
+const { initCleanChannels } = require("./cleanchannels");
 // ── NEW: web control panel ─────────────────────────────────────────────────────
 const { mountDashboard, applyStoredPresence } = require("./dashboard");
 
@@ -144,6 +146,7 @@ client.once("ready", async () => {
   initCustomCommands(client);   // ── NEW: dashboard-made prefix commands
   initTimers(client);           // ── NEW: timed messages
   initStarboard(client);        // ── NEW: starboard
+  initCleanChannels(client);    // ── NEW: commands-only channels (after custom commands so replies go out first)
   applyStoredPresence(client);  // ── NEW: presence picked in the dashboard survives restarts
 
   await registerCommands();

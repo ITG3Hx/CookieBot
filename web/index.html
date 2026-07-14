@@ -44,6 +44,7 @@
       <button class="nav-item" data-view="commands"><svg viewBox="0 0 24 24" class="ni"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4Zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4Z"/></svg>Commands</button>
       <button class="nav-item" data-view="timers"><svg viewBox="0 0 24 24" class="ni"><path d="M12 22a9 9 0 1 1 0-18 9 9 0 0 1 0 18Zm1-9.4V7h-2v6.6l4.2 2.5 1-1.7-3.2-1.8ZM9 2h6v2H9V2Z"/></svg>Timers</button>
       <button class="nav-item" data-view="starboard"><svg viewBox="0 0 24 24" class="ni"><path d="m12 2 2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8L12 2Z"/></svg>Starboard</button>
+      <button class="nav-item" data-view="cleanchannels"><svg viewBox="0 0 24 24" class="ni"><path d="M19 2 9.7 11.3l3 3L22 5V2h-3ZM8.3 12.7 4 17c-1.3 1.3-2 3-2 5 2 0 3.7-.7 5-2l4.3-4.3-3-3Z"/></svg>Clean channels</button>
       <button class="nav-item" data-view="moderation"><svg viewBox="0 0 24 24" class="ni"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm0 4.5 1.6 3.3 3.6.5-2.6 2.5.6 3.6L12 15.2 8.8 17l.6-3.6-2.6-2.5 3.6-.5L12 6.5Z"/></svg>Moderation</button>
       <button class="nav-item" data-view="security"><svg viewBox="0 0 24 24" class="ni"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm0 5a2.5 2.5 0 0 1 2.5 2.5c0 1-.6 1.8-1.5 2.2V15h-2v-3.3c-.9-.4-1.5-1.2-1.5-2.2A2.5 2.5 0 0 1 12 7Z"/></svg>Security</button>
       <button class="nav-item" data-view="giveaways"><svg viewBox="0 0 24 24" class="ni"><path d="M20 7h-2.2a3 3 0 0 0-4.3-4A3 3 0 0 0 12 4a3 3 0 0 0-1.5-1 3 3 0 0 0-4.3 4H4a1 1 0 0 0-1 1v3h9V7h2v4h9V8a1 1 0 0 0-1-1Zm-8-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0Zm-4-1a1 1 0 0 1 2 0 1 1 0 0 1-2 0ZM3 20a1 1 0 0 0 1 1h7v-8H3v7Zm10 1h7a1 1 0 0 0 1-1v-7h-8v8Z"/></svg>Giveaways</button>
@@ -738,6 +739,32 @@
         <div class="row end sticky-save">
           <span id="sb-status" class="muted small"></span>
           <button id="sb-save" class="btn primary">Save starboard</button>
+        </div>
+      </section>
+
+      <!-- Clean channels -->
+      <section id="view-cleanchannels" class="view hidden">
+        <div class="view-head">
+          <h2>Clean channels</h2>
+          <button id="clc-add" class="btn">Add channel</button>
+        </div>
+        <p class="section-desc">Commands-only channels: normal chat gets deleted instantly, command messages like <code>!ip</code> are swept away after the bot answers, and bot replies (including slash command answers like <code>/id</code>) can disappear on a timer so the channel stays empty. <b>Off until you flip the Activate switch and save.</b> The bot needs the Manage Messages permission in those channels.</p>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Activate clean channels</h2>
+            <label class="switch"><input id="clc-enabled" type="checkbox"><span class="track"></span></label>
+          </div>
+          <h3 class="sub">Exempt roles (may chat normally)</h3>
+          <div class="row"><select id="clc-exempt-pick" class="input grow"></select><button id="clc-exempt-add" class="btn">Add</button></div>
+          <div class="chip-box" id="clc-exempt"></div>
+        </div>
+
+        <div id="clc-list"></div>
+
+        <div class="row end sticky-save">
+          <span id="clc-status" class="muted small"></span>
+          <button id="clc-save" class="btn primary">Save clean channels</button>
         </div>
       </section>
 

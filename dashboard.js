@@ -38,6 +38,7 @@ const leveling = require("./leveling");
 const customcommands = require("./customcommands");
 const timers = require("./timers");
 const starboard = require("./starboard");
+const cleanchannels = require("./cleanchannels");
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const COOKIE_NAME   = "cb_dash";
@@ -205,6 +206,7 @@ function mountDashboard(app, discordClient, options = {}) {
         commands: customcommands.webGetCustomCommands().enabled,
         timers: timers.webGetTimers().enabled,
         starboard: starboard.webGetStarboard().config.enabled,
+        cleanchannels: cleanchannels.webGetCleanChannels().config.enabled,
       },
       process: { node: process.version, memMB: Math.round(process.memoryUsage().rss / 1048576), uptimeS: Math.round(process.uptime()) },
       activity: listActivity(40),
@@ -389,6 +391,14 @@ function mountDashboard(app, discordClient, options = {}) {
   api.put("/starboard", wrap(async (req, res) => {
     const result = starboard.webUpdateStarboard(req.body || {});
     if (!result.error) pushActivity("starboard", "Starboard settings updated via dashboard");
+    send(res, result);
+  }));
+
+  // ── clean channels (commands only) ──
+  api.get("/cleanchannels", (req, res) => res.json({ ok: true, ...cleanchannels.webGetCleanChannels() }));
+  api.put("/cleanchannels", wrap(async (req, res) => {
+    const result = cleanchannels.webUpdateCleanChannels(req.body || {});
+    if (!result.error) pushActivity("cleanch", "Clean channels updated via dashboard");
     send(res, result);
   }));
 

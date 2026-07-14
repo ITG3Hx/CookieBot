@@ -124,6 +124,7 @@ const loaders = {
   commands: loadCommands,
   timers: loadTimersView,
   starboard: loadStarboard,
+  cleanchannels: loadCleanChannels,
   moderation: loadModeration,
   security: loadSecurity,
   giveaways: loadGiveaways,
@@ -270,6 +271,7 @@ async function loadOverview() {
       ["commands", "Custom commands"],
       ["timers", "Timed messages"],
       ["starboard", "Starboard"],
+      ["cleanchannels", "Clean channels"],
     ];
     $("#ov-plugins").innerHTML = defs.map(([key, label]) => `
       <div class="stat" data-plugin="${key}" style="cursor:pointer">
@@ -1925,6 +1927,102 @@ $("#sb-save").addEventListener("click", busy($("#sb-save"), async () => {
     ignoreChannels: state.starboard.ignoreChannels,
   }});
   toast("Starboard saved");
+}));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Clean channels
+// ══════════════════════════════════════════════════════════════════════════════
+function renderClcList() {
+  const c = state.cleanch;
+  const chOpts = (value) => state.channels.filter(x => TEXTY.includes(x.type))
+    .map(x => `<option value="${x.id}" ${x.id === value ? "selected" : ""}>#${esc(x.name)}</option>`).join("");
+  $("#clc-list").innerHTML = c.channels.length ? c.channels.map((ch, i) => `
+    <div class="card" data-clc-i="${i}">
+      <div class="card-head">
+        <div class="row">
+          <select class="input clc-channel">${chOpts(ch.channelId)}</select>
+          ${state.cleanchMissing?.includes(ch.channelId) ? `<span class="tag warn">missing Manage Messages</span>` : ""}
+        </div>
+        <button class="btn mini ghost clc-rm">Remove</button>
+      </div>
+      <div class="form-grid">
+        <label class="check"><input class="clc-delcmd" type="checkbox" ${ch.deleteUserCommands !== false ? "checked" : ""}> Delete the command message too (e.g. the "!ip" someone typed)</label>
+        <label>Bot replies disappear after (seconds, 0 = keep)
+          <input class="input clc-ttl" type="number" min="0" max="86400" value="${ch.botLifetimeSec || 0}">
+        </label>
+        <label class="check"><input class="clc-warn" type="checkbox" ${ch.warn !== false ? "checked" : ""}> Briefly warn people whose chat gets removed</label>
+        <label>Warning text (optional, {user} = mention)
+          <input class="input clc-warntext" value="${esc(ch.warnText || "")}" maxlength="300" placeholder="This channel is for bot commands only, {user}.">
+        </label>
+      </div>
+    </div>`).join("") : `<div class="empty">No clean channels yet. Hit "Add channel" and pick your commands channel.</div>`;
+}
+
+function collectClcList() {
+  return $$("#clc-list [data-clc-i]").map(card => ({
+    channelId: card.querySelector(".clc-channel").value,
+    deleteUserCommands: card.querySelector(".clc-delcmd").checked,
+    botLifetimeSec: parseInt(card.querySelector(".clc-ttl").value, 10) || 0,
+    warn: card.querySelector(".clc-warn").checked,
+    warnText: card.querySelector(".clc-warntext").value,
+  }));
+}
+
+function renderClcExempt() {
+  renderChips($("#clc-exempt"), state.cleanch.exemptRoles, roleName, "clc-ex-rm");
+}
+
+async function loadCleanChannels() {
+  await loadGuildData().catch(() => {});
+  const d = await api("/cleanchannels");
+  state.cleanch = d.config;
+  state.cleanchMissing = d.missingPerms || [];
+  $("#clc-enabled").checked = !!d.config.enabled;
+  fillRoleSelect($("#clc-exempt-pick"), { none: "pick a role" });
+  renderClcExempt();
+  renderClcList();
+}
+
+$("#clc-add").addEventListener("click", () => {
+  if (!state.cleanch) return;
+  state.cleanch.channels = collectClcList();
+  state.cleanch.channels.push({
+    channelId: state.channels.find(x => TEXTY.includes(x.type))?.id || "",
+    deleteUserCommands: true, botLifetimeSec: 0, warn: true, warnText: "",
+  });
+  renderClcList();
+});
+$("#clc-exempt-add").addEventListener("click", () => {
+  const id = $("#clc-exempt-pick").value;
+  if (!id || state.cleanch.exemptRoles.includes(id)) return;
+  state.cleanch.exemptRoles.push(id);
+  renderClcExempt();
+});
+$("#view-cleanchannels").addEventListener("click", (ev) => {
+  if (!state.cleanch) return;
+  const exRm = ev.target.closest("[data-clc-ex-rm]");
+  if (exRm) {
+    state.cleanch.exemptRoles = state.cleanch.exemptRoles.filter(x => x !== exRm.dataset.clcExRm);
+    renderClcExempt();
+    return;
+  }
+  const rm = ev.target.closest(".clc-rm");
+  if (rm) {
+    const i = parseInt(rm.closest("[data-clc-i]").dataset.clcI, 10);
+    state.cleanch.channels = collectClcList();
+    state.cleanch.channels.splice(i, 1);
+    renderClcList();
+  }
+});
+$("#clc-save").addEventListener("click", busy($("#clc-save"), async () => {
+  const r = await api("/cleanchannels", { method: "PUT", body: {
+    enabled: $("#clc-enabled").checked,
+    exemptRoles: state.cleanch.exemptRoles,
+    channels: collectClcList(),
+  }});
+  state.cleanch = r.config;
+  renderClcList();
+  toast(r.config.enabled ? "Clean channels saved and active" : "Saved. Clean channels are OFF until you activate them.");
 }));
 
 // ── boot ──────────────────────────────────────────────────────────────────────
